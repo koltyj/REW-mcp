@@ -1,636 +1,448 @@
-# REW MCP Server Plan
+# REW MCP Server
 
-## 1) Overview
-Room EQ Wizard (REW) exposes a local-only HTTP API on `127.0.0.1:4735` (default) when enabled in Preferences > API or when launched with `-api` (and optional `-port`). This MCP server acts as a thin, deterministic orchestrator: it never plays audio itself, and instead drives REW to perform sweeps, export measurements, and then runs pure, deterministic analysis on the exported data. The REW API is the single control surface for measurement orchestration, configuration, and export.
+An MCP (Model Context Protocol) server that interfaces with Room EQ Wizard (REW) via its HTTP API, enabling AI-assisted speaker placement decisions and validation of Genelec GLM calibration.
 
-The server is designed for speaker placement workflows and for validating pre/post Genelec GLM measurements. It provides deterministic, explainable analysis with explicit confidence scoring and never claims success without evidence: a 2xx response from REW and a parseable export artifact. Each operation has at most one retry, and the server relies on documented REW endpoints and subscription progress updates (no endpoint probing).
+## Primary Use Cases
 
-The MCP server surfaces tools for health checks, sweep configuration, measurement naming, running/canceling sweeps, listing and exporting measurements, deterministic analysis, and comparing pre/post results. It stores data locally under a structured workspace (runs/{sessionId}/{measurementId}/...), with an index mapping REW measurement IDs (numeric index or UUID) to session metadata. It enforces localhost-only REW control by default, rejecting non-local addresses unless explicitly configured. All interactions are limited to documented REW endpoints (no discovery or probing beyond the documented commands/choices endpoints).
+1. **Speaker placement optimization** — Compare measurements from different speaker positions
+2. **Pre- vs post-GLM calibration comparison** — Validate what Genelec GLM addressed
+3. **Room mode and null identification** — Detect problematic frequencies
+4. **Decision support** — Move speaker vs trust GLM vs treat room
 
-Implementation choice: TypeScript with the official MCP SDK (`@modelcontextprotocol/sdk`) and `undici` (or Node’s built-in `fetch`) for HTTP requests. The REW client is a thin wrapper over `fetch`, with request/response logging, strict 2xx checking, and a single retry rule baked into each operation.
+## Non-Goals
 
-## 2) Phase plan (v0/v1/v1.5) with acceptance criteria
+| Not Supported | Reason |
+|---------------|--------|
+| Real-time audio control | System orchestrates REW; does not play audio itself |
+| DSP or EQ application | Human executes all changes |
+| Replace Genelec GLM | Complements, doesn't replace |
+| Automatic "magic fixes" | Advises only, human decides |
 
-### v0 — API orchestration + export pipeline
+## Core Principle
+
+**Epistemic honesty over false confidence.**
+
+The system must:
+- Never hallucinate causes
+- Always mark uncertainty
+- Prefer "likely" over "certain"
+- Defer final judgment to humans
+
+---
+
+## REW HTTP API Reference
+
+> **Official documentation**: https://www.roomeqwizard.com/help/help_en-GB/html/api.html  
+> **OpenAPI specification**: Available at `http://localhost:4735/doc.json` or `http://localhost:4735/doc.yaml` when REW API is running.
+
+### Key Facts (from official docs)
+
+| Fact | Citation |
+|------|----------|
+| Default port is **4735** | "the default port is 4735" — [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html) |
+| Localhost-only by default | "It cannot be accessed outside the machine REW is running on" — [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html) |
+| Non-localhost requires `-host` argument | "To specify a different IP address, e.g. 0.0.0.0, add `-host \"0.0.0.0\"`" — [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html) |
+| Start API with `-api` flag | "To start the API server use the button on the API preferences or run REW with the `-api` argument" — [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html) |
+| Headless mode with `-nogui` | "To run REW without a GUI use the -nogui argument" — [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html) |
+| Pro upgrade required for automated sweeps | "to control REW via the API to make automated sweep measurements requires a Pro upgrade license" — [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html) |
+| Blocking mode for scripting | "a blocking mode can be enabled by POST to `/application/blocking`" — [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html) |
+| Subscriptions for progress updates | "Some endpoints allow subscriptions to be added to be notified of changes" — [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html) |
+| 200 OK or 202 Accepted responses | "the response to a POST to an endpoint that runs a command may be 200 (OK) or 202 (Accepted)" — [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html) |
+| Bad Request if command in progress | "An attempt to POST to an endpoint that would run another command while one is already in progress will return Bad Request" — [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html) |
+
+### Documented Endpoints
+
+The following endpoints are documented in the official REW API help. Consult the OpenAPI spec at `localhost:4735/doc.json` for exact payload schemas.
+
+#### Application Control
+| Endpoint | Methods | Purpose | Citation |
+|----------|---------|---------|----------|
+| `/application/commands` | GET | List application commands | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#application) |
+| `/application/command` | POST | Execute application command (e.g., shutdown) | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#application) |
+| `/application/blocking` | POST | Enable/disable blocking mode | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#blocking) |
+| `/application/errors` | GET | Retrieve logged errors | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#application) |
+| `/application/last-error` | GET | Retrieve most recent error | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#application) |
+| `/application/logging` | POST | Enable/disable API message logging | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#logging) |
+| `/application/inhibit-graph-updates` | POST | Inhibit graph updates | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#inhibitgraphupdates) |
+
+#### Measurement Control (requires Pro upgrade for POST/PUT)
+| Endpoint | Methods | Purpose | Citation |
+|----------|---------|---------|----------|
+| `/measure/commands` | GET | List measurement commands | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/command` | POST | Execute measurement command (start, cancel) | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/naming` | GET, POST, PUT | Measurement naming settings | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/naming/naming-options` | GET | Naming options | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/notes` | GET, POST | Notes for next measurement | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/level` | GET, POST, PUT | Measurement level | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/level/units` | GET | Accepted level units | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/protection-options` | GET, POST, PUT | Clipping/SPL abort options | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/sweep/configuration` | GET, POST, PUT | Sweep config (start freq, end freq, length, dither) | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/sweep/repetitions` | GET, POST | Number of sweep repetitions | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/timing` | GET, POST, PUT | Timing reference settings | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/timing/reference` | GET, POST | Timing reference | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/timing-offset` | GET, POST | Timing offset | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/playback-mode` | GET, POST | Playback mode | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/playback-mode/choices` | GET | Playback mode options | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/file-playback-stimulus` | POST | Set stimulus file path | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/measurement-mode` | GET, POST | Measurement mode (single, repeated, ramped, sequential) | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/measurement-mode/choices` | GET | Measurement mode options | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/sequential-channels` | GET, POST | Channels for sequential mode | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/sequential-choices` | GET | Sequential channel options | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/start-delay` | GET, POST | Delay before measurement starts (seconds) | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/number-of-repetitions` | GET, POST | Repetition count for repeated/ramped mode | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/start-level` | GET, POST | Start level for ramped measurements | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/end-level` | GET, POST | End level for ramped measurements | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+| `/measure/capture-noise-floor` | GET, POST | Whether to capture noise floor | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measure) |
+
+#### Measurements Management
+| Endpoint | Methods | Purpose | Citation |
+|----------|---------|---------|----------|
+| `/measurements` | GET, DELETE | List/delete all measurements | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measurements) |
+| `/measurements/:id` | GET, DELETE, PUT | Get/delete/update single measurement (by index or UUID) | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measurements) |
+| `/measurements/commands` | GET | List commands (Save all, Load, Sort alphabetically, Dirac) | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measurements-commands) |
+| `/measurements/command` | POST | Execute command | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measurements-commands) |
+| `/measurements/:id/commands` | GET | List single-measurement commands (Save, smooth, etc.) | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#singlecommands) |
+| `/measurements/:id/command` | POST | Execute single-measurement command | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#singlecommands) |
+| `/measurements/:id/frequency-response` | GET | Get frequency response data (Base64-encoded) | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#freqresp) |
+| `/measurements/:id/impulse-response` | GET | Get impulse response data (Base64-encoded) | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#impulseresp) |
+| `/measurements/:id/group-delay` | GET | Get group delay data | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#groupdelay) |
+| `/measurements/:id/ir-windows` | GET, POST, PUT | IR window settings | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#irwindows) |
+| `/measurements/:id/distortion` | GET | Distortion data | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#distortion) |
+| `/measurements/selected-uuid` | GET, POST | Selected measurement UUID | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measurements) |
+| `/measurements/selected` | GET, POST | Selected measurement index | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measurements) |
+| `/measurements/frequency-response/units` | GET | Available FR units | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#freqresp) |
+| `/measurements/frequency-response/smoothing-choices` | GET | Available smoothing options | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#freqresp) |
+| `/measurements/impulse-response/units` | GET | Available IR units | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#impulseresp) |
+
+#### Generator Control
+| Endpoint | Methods | Purpose | Citation |
+|----------|---------|---------|----------|
+| `/generator/status` | GET | Generator status (enabled, playing, signal, level) | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#generator) |
+| `/generator/signal` | GET, PUT | Current signal selection | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#generator) |
+| `/generator/signals` | GET | Available signals | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#generator) |
+| `/generator/signal/configuration` | GET, PUT | Signal configuration | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#generator) |
+| `/generator/commands` | GET | List generator commands | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#generator) |
+
+#### Other Endpoints
+| Endpoint | Methods | Purpose | Citation |
+|----------|---------|---------|----------|
+| `/audio/*` | Various | Audio device configuration | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#audio) |
+| `/alignment-tool/*` | Various | Alignment tool control | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#alignment-tool) |
+| `/groups/*` | Various | Measurement groups | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#groups) |
+| `/spl-meter/*` | Various | SPL meter control | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#spl-meter) |
+| `/rta/*` | Various | RTA control | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#rta) |
+| `/import/*` | Various | Import files/data | [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#import) |
+
+### Example Commands (from official docs)
+
+**Save all measurements** (documented example):
+```json
+{
+  "command": "Save all",
+  "parameters": [
+    "C:/Users/myusername/REW/latest.mdat",
+    "These are my latest files"
+  ]
+}
+```
+> Citation: [REW API Help - Measurements commands](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measurements-commands)
+
+**Load measurements** (documented example):
+```json
+{
+  "command": "Load",
+  "parameters": [
+    "C:/Users/myusername/REW/file1.mdat",
+    "C:/Users/myusername/REW/file2.mdat"
+  ]
+}
+```
+> Citation: [REW API Help - Measurements commands](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measurements-commands)
+
+**Save individual measurement** (documented example):
+```json
+{
+  "command": "Save",
+  "parameters": {"filename": "c:/users/myusername/downloads/myfile.mdat"}
+}
+```
+> Citation: [REW API Help - Commands for individual measurements](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#singlecommands)
+
+### Important Notes
+
+1. **UUID vs Index**: "Using index numbers for measurements is NOT recommended. Index numbers change when measurements are added to or removed from a group or when other measurements are deleted." — [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measurements)
+
+2. **Array encoding**: "Arrays are transferred as Base64-encoded strings generated from the raw bytes of the 32-bit float sample values. Note that byte order is big-endian." — [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#arrays)
+
+3. **File paths**: "if a file path has backslash as the path separator the string for the path will need to escape the backslash entries, i.e. use a double backslash instead or replace backslash by forward slash." — [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html#measurements-commands)
+
+---
+
+## MCP SDK Reference
+
+> **Official repository**: https://github.com/modelcontextprotocol/typescript-sdk  
+> **npm package (server)**: `@modelcontextprotocol/server`  
+> **npm package (client)**: `@modelcontextprotocol/client`
+
+### Installation
+
+```bash
+npm install @modelcontextprotocol/server zod
+```
+> Citation: [MCP TypeScript SDK README](https://github.com/modelcontextprotocol/typescript-sdk)
+
+### Overview
+
+"The Model Context Protocol (MCP) allows applications to provide context for LLMs in a standardized way, separating the concerns of providing context from the actual LLM interaction." — [MCP TypeScript SDK README](https://github.com/modelcontextprotocol/typescript-sdk)
+
+---
+
+## Implementation Plan
+
+### Phase 0 — API Integration + Data Pipeline
+
 **Scope**
-- MCP server can reach REW API (`/` or `/api` health check as documented, plus `/measure/commands` round-trip).
-- Configure sweep parameters, level, timing, playback mode, measurement mode, and protection options via API.
-- Run a sweep, track progress via subscriptions, export measurement data, and verify file parseability.
-- Store artifacts and metadata in local workspace.
+- Connect to REW API (health check via `/measure/commands` or `/application/commands`)
+- Configure sweep parameters via documented endpoints
+- Run a sweep (requires Pro upgrade), track progress via subscriptions
+- Save measurement data using "Save" or "Save all" commands
+- Retrieve measurement data via `/measurements/:id/frequency-response` and `/measurements/:id/impulse-response`
 
-**Acceptance criteria**
-- [ ] `rew.api_healthcheck` reports status only after a 2xx response from REW.
-- [ ] `rew.configure_sweep` sets sweep configuration, level, timing, playback mode, measurement mode, start delay, and protection options; verify with GET calls.
-- [ ] `rew.run_sweep` returns success only after REW confirms completion via subscription + a measurement appears in `/measurements`.
-- [ ] `rew.export_measurement` saves a file to `runs/{sessionId}/{measurementId}/raw_exports` and verifies it is parseable.
-- [ ] For any step: one retry max; otherwise FAIL with actionable error.
+**Acceptance Criteria**
+- [ ] Health check reports status only after 2xx response from REW
+- [ ] Configuration applies settings and verifies with GET calls
+- [ ] Sweep returns success only after REW confirms completion via subscription + measurement appears in `/measurements`
+- [ ] Data retrieval successfully decodes Base64-encoded frequency/impulse response data
+- [ ] For any step: one retry max; otherwise FAIL with actionable error
 
-### v1 — Deterministic analysis + comparison
+### Phase 1 — Deterministic Analysis + Comparison
+
 **Scope**
-- Deterministic analysis of exported FR/IR (no ML).
-- Pre/post and L/R comparison tools.
-- Confidence scoring and sanity checks.
+- Parse frequency response and impulse response data from REW API
+- Deterministic analysis of FR/IR (no ML)
+- Pre/post and L/R comparison tools
+- Confidence scoring
 
-**Acceptance criteria**
-- [ ] `rew.analyze_measurement` returns band summaries, peaks/nulls, symmetry metrics, and sanity checks.
-- [ ] `rew.compare_measurements` returns structured deltas and top divergences.
-- [ ] Confidence (high/medium/low) and reasons are always provided.
+**Acceptance Criteria**
+- [ ] Analysis returns band summaries, peaks/nulls, and basic metrics
+- [ ] Comparison returns structured deltas
+- [ ] Confidence (high/medium/low) and reasons are always provided
 
-### v1.5 — Session sequencing + optional generator checks
+### Phase 1.5 — Session Sequencing
+
 **Scope**
-- `rew.session_run_sequence` for scripted L/R sweeps with metadata.
-- Optional use of generator endpoints for pink noise/tones (non-sweep checks).
+- Scripted L/R sweeps with metadata using sequential measurement mode
+- Optional generator control for pink noise checks
 
-**Acceptance criteria**
-- [ ] Run scripted L, R, Both, repeat sweeps with deterministic naming and metadata.
-- [ ] Optional generator control uses documented endpoints only and is fully cancellable.
+**Acceptance Criteria**
+- [ ] Run scripted L, R, Both sweeps with deterministic naming
+- [ ] Optional generator control uses only documented endpoints
 
-## 3) Repo layout (tree)
+---
+
+## Proposed MCP Tools
+
+### `rew.health_check`
+
+Check if REW API is reachable and responsive.
+
+**Input**
+```json
+{
+  "host": "127.0.0.1",
+  "port": 4735,
+  "timeoutMs": 2000
+}
+```
+
+**Output**
+```json
+{
+  "status": "success | failed",
+  "commands": ["list", "of", "commands"],
+  "error": { "code": "string", "message": "string" }
+}
+```
+
+### `rew.configure_sweep`
+
+Configure sweep parameters using documented REW endpoints.
+
+**Implementation**: Uses `/measure/sweep/configuration`, `/measure/level`, `/measure/timing`, `/measure/playback-mode`, `/measure/measurement-mode`, `/measure/start-delay`, `/measure/protection-options`.
+
+### `rew.run_sweep`
+
+Start a sweep measurement (requires REW Pro upgrade).
+
+**Implementation**: Uses `/measure/command` with POST. Monitor progress via subscription to `/measure`.
+
+### `rew.list_measurements`
+
+List current measurements in REW.
+
+**Implementation**: Uses GET `/measurements`.
+
+### `rew.get_measurement_data`
+
+Retrieve frequency response or impulse response data.
+
+**Implementation**: Uses `/measurements/:id/frequency-response` or `/measurements/:id/impulse-response`. Decodes Base64 data per documented format.
+
+### `rew.save_measurements`
+
+Save measurements to file.
+
+**Implementation**: Uses `/measurements/command` with "Save all" command or `/measurements/:id/command` with "Save" command.
+
+### `rew.analyze_measurement`
+
+Perform deterministic analysis on measurement data.
+
+**Implementation**: Local analysis of decoded FR/IR data. No REW API calls.
+
+### `rew.compare_measurements`
+
+Compare two measurements for placement optimization or GLM validation.
+
+**Implementation**: Local comparison of decoded FR/IR data. No REW API calls.
+
+---
+
+## Deterministic Analysis Rules
+
+These are proposed analysis rules for the MCP server to apply. They are **not** part of REW's API—they are local computations performed on data retrieved from REW.
+
+### Frequency Bands (for band summaries)
+- Sub-bass: 20–80 Hz
+- Bass: 80–200 Hz
+- Low-mid: 200–500 Hz
+- Mid: 500–2 kHz
+- High-mid: 2–10 kHz
+- High: 10 kHz+
+
+### Peak/Null Detection (proposed thresholds)
+- **Peaks**: Local maxima ≥ +5 dB over local moving average
+- **Nulls**: Local minima ≤ −6 dB below local moving average
+
+### Confidence Scoring (proposed)
+- **High**: Data parses correctly, expected frequency range present, low noise
+- **Medium**: Minor gaps or partial data
+- **Low**: Parse issues, missing bands, or high uncertainty
+
+---
+
+## Error Handling (Proposed)
+
+| Error Code | Meaning | Remediation |
+|------------|---------|-------------|
+| `ERR_CONNECTION_REFUSED` | Cannot connect to REW API | Verify REW is running with `-api` flag |
+| `ERR_NONLOCAL_BLOCKED` | Attempted non-localhost connection | Use localhost or configure REW with `-host` |
+| `ERR_BAD_REQUEST` | REW rejected request (400) | Check payload against OpenAPI spec |
+| `ERR_COMMAND_IN_PROGRESS` | Another command is running | Wait for completion or use blocking mode |
+| `ERR_PRO_REQUIRED` | POST/PUT requires Pro upgrade | Acquire REW Pro license for automation |
+| `ERR_PARSE_FAILED` | Could not decode response data | Check Base64 decoding and byte order |
+
+---
+
+## Repo Layout (Proposed)
 
 ```
 rew-mcp/
   README.md
+  package.json
+  tsconfig.json
   src/
-    server.ts               # MCP server entry (TypeScript)
+    server.ts               # MCP server entry
     config/
-      defaults.ts           # Default REW host/port and timeouts
+      defaults.ts           # Default host/port, timeouts
     rew/
       client.ts             # HTTP client wrapper for REW API
-      endpoints.ts          # Typed endpoint definitions + payload shapes
-      subscriptions.ts      # Subscription handling for /measure progress
+      endpoints.ts          # Endpoint constants
     tools/
-      apiHealthcheck.ts
+      healthCheck.ts
       configureSweep.ts
-      setMeasurementNaming.ts
       runSweep.ts
-      cancelMeasurement.ts
       listMeasurements.ts
-      exportMeasurement.ts
+      getMeasurementData.ts
+      saveMeasurements.ts
       analyzeMeasurement.ts
       compareMeasurements.ts
-      sessionRunSequence.ts
     analysis/
-      parseExport.ts         # Parse FR/IR exports
-      metrics.ts             # Peak/null detection, bands, symmetry
-      compare.ts             # Pre/post comparison
-      confidence.ts          # Confidence scoring rules
-    storage/
-      workspace.ts           # Filesystem paths + index
-      index.ts               # Measurement ID ↔ metadata mapping
-    state/
-      sessionMachine.ts      # State machine implementation
-      types.ts
+      parseResponse.ts      # Decode Base64 FR/IR data
+      metrics.ts            # Peak/null detection, band summaries
+      compare.ts            # Comparison logic
+    types/
+      index.ts              # Type definitions
   tests/
     unit/
       analysis/*.test.ts
     integration/
       rew-api/*.test.ts
     fixtures/
-      exports/
-        example-fr.csv
-        example-ir.csv
+      sample-fr.json
+      sample-ir.json
 ```
 
-## 4) REW API mapping table
+---
 
-| MCP tool | REW endpoint(s) | Method | Payload (shape) | Expected response | Failure modes |
-|---|---|---|---|---|---|
-| `rew.api_healthcheck` | `/measure/commands` | GET | none | 2xx + list of commands | 4xx/5xx, connection refused, non-local host rejected |
-| `rew.configure_sweep` | `/measure/sweep/configuration` | GET/POST/PUT | `{ startFreq, endFreq, length, dither }` | 2xx + updated config | 4xx invalid params, 5xx |
-|  | `/measure/level` | GET/POST/PUT | `{ level, unit }` (unit validated against `/measure/level/units`) | 2xx + updated level | unit unsupported, 4xx |
-|  | `/measure/level/units` | GET | none | 2xx + list | 4xx/5xx |
-|  | `/measure/playback-mode` | GET/POST/PUT | `{ mode }` (validated against `/measure/playback-mode/choices`) | 2xx | invalid mode |
-|  | `/measure/playback-mode/choices` | GET | none | 2xx + list | 4xx/5xx |
-|  | `/measure/file-playback-stimulus` | POST | `{ path }` | 2xx | file missing, 4xx |
-|  | `/measure/measurement-mode` | GET/POST/PUT | `{ mode }` (validated against `/measure/measurement-mode/choices`) | 2xx | invalid mode |
-|  | `/measure/measurement-mode/choices` | GET | none | 2xx + list | 4xx/5xx |
-|  | `/measure/sequential-channels` | GET/POST/PUT | `{ channels }` (validated against `/measure/sequential-choices`) | 2xx | invalid channel list |
-|  | `/measure/sequential-choices` | GET | none | 2xx + list | 4xx/5xx |
-|  | `/measure/timing` | GET/POST/PUT | `{ reference, mode }` | 2xx | invalid reference |
-|  | `/measure/timing-offset` | GET/POST/PUT | `{ offsetMs }` | 2xx | 4xx |
-|  | `/measure/start-delay` | GET/POST/PUT | `{ seconds }` | 2xx | 4xx |
-|  | `/measure/protection-options` | GET/POST/PUT | `{ abortOnClipping, abortOnSPL, clipThreshold, splThreshold }` | 2xx | 4xx |
-| `rew.set_measurement_naming` | `/measure/naming` | POST/PUT | `{ namePattern }` | 2xx | 4xx |
-|  | `/measure/notes` | POST/PUT | `{ notes }` | 2xx | 4xx |
-| `rew.run_sweep` | `/measure/commands` | GET | none | 2xx + commands list | 4xx/5xx |
-|  | `/measure/command` | POST | `{ command: "start" }` (or documented equivalent) | 2xx + ack | 4xx, 409 busy |
-|  | `/measure` subscription | SUBSCRIBE | `{ path: "/measure" }` | progress strings | missing progress, timeout |
-| `rew.cancel_measurement` | `/measure/command` | POST | `{ command: "cancel" }` | 2xx | 4xx |
-| `rew.list_measurements` | `/measurements` | GET | none | 2xx + list of measurements (id/index/uuid) | 4xx/5xx |
-| `rew.export_measurement` | `/measurements/:id` | GET | none | 2xx + metadata | 404 if missing |
-|  | `/measurements/commands` | GET | none | 2xx + commands list | 4xx |
-|  | `/measurements/command` | POST | `{ command: "Export", options: { format, targetPath, dataType } }` | 2xx + export status | 4xx invalid, 5xx |
-|  | `/measurements/command` | POST | `{ command: "Save all", options: { directoryPath, note } }` | 2xx + save status | 4xx invalid, 5xx |
-| `rew.analyze_measurement` | (filesystem exports) | local | parse FR/IR exports | metrics JSON | parse error, empty data |
-| `rew.compare_measurements` | (filesystem exports) | local | read analysis JSON | delta report | missing analysis |
-| `rew.session_run_sequence` | `/measure/command` + `/measure/notes` + `/measure/naming` | POST | L/R/Both steps | 2xx + progress | busy, timeout |
-| Optional generator | `/generator/status`, `/generator/signal`, `/generator/signals`, `/generator/level`, `/generator/frequency`, `/generator/commands` | GET/POST | as documented | 2xx + state | 4xx/5xx |
+## Running REW for Development
 
-## 5) MCP tool schema definitions (JSON Schema style)
-
-### Common types
-```json
-{
-  "$defs": {
-    "status": {"enum": ["success", "failed", "pending"]},
-    "confidence": {"enum": ["high", "medium", "low"]},
-    "error": {
-      "type": "object",
-      "required": ["code", "message"],
-      "properties": {
-        "code": {"type": "string"},
-        "message": {"type": "string"},
-        "details": {"type": "object"}
-      }
-    }
-  }
-}
+**Windows**:
+```bash
+"C:\Program Files\REW\roomeqwizard.exe" -api
 ```
 
-### `rew.api_healthcheck`
-**Input**
-```json
-{
-  "type": "object",
-  "properties": {
-    "host": {"type": "string", "default": "127.0.0.1"},
-    "port": {"type": "integer", "default": 4735},
-    "timeoutMs": {"type": "integer", "default": 2000}
-  }
-}
-```
-**Output**
-```json
-{
-  "type": "object",
-  "required": ["status", "confidence", "rewVersion"],
-  "properties": {
-    "status": {"$ref": "#/$defs/status"},
-    "confidence": {"$ref": "#/$defs/confidence"},
-    "rewVersion": {"type": "string"},
-    "commands": {"type": "array", "items": {"type": "string"}},
-    "error": {"$ref": "#/$defs/error"}
-  }
-}
+**macOS**:
+```bash
+open -a REW.app --args -api
 ```
 
-### `rew.configure_sweep`
-**Input**
-```json
-{
-  "type": "object",
-  "required": ["sessionId", "sweep", "level", "timing", "playback", "measurement", "startDelay", "protection"],
-  "properties": {
-    "sessionId": {"type": "string"},
-    "sweep": {
-      "type": "object",
-      "required": ["startFreq", "endFreq", "lengthSec", "dither"],
-      "properties": {
-        "startFreq": {"type": "number"},
-        "endFreq": {"type": "number"},
-        "lengthSec": {"type": "number"},
-        "dither": {"type": "boolean"}
-      }
-    },
-    "level": {
-      "type": "object",
-      "required": ["value", "unit"],
-      "properties": {
-        "value": {"type": "number"},
-        "unit": {"type": "string", "default": "dBFS"}
-      }
-    },
-    "timing": {
-      "type": "object",
-      "required": ["reference", "mode", "offsetMs"],
-      "properties": {
-        "reference": {"type": "string"},
-        "mode": {"type": "string"},
-        "offsetMs": {"type": "number"}
-      }
-    },
-    "playback": {
-      "type": "object",
-      "required": ["mode"],
-      "properties": {
-        "mode": {"type": "string"},
-        "fileStimulusPath": {"type": "string"}
-      }
-    },
-    "measurement": {
-      "type": "object",
-      "required": ["mode"],
-      "properties": {
-        "mode": {"type": "string"},
-        "sequentialChannels": {"type": "array", "items": {"type": "string"}}
-      }
-    },
-    "startDelay": {"type": "number"},
-    "protection": {
-      "type": "object",
-      "properties": {
-        "abortOnClipping": {"type": "boolean"},
-        "abortOnSPL": {"type": "boolean"},
-        "clipThreshold": {"type": "number"},
-        "splThreshold": {"type": "number"}
-      }
-    }
-  }
-}
-```
-**Output**
-```json
-{
-  "type": "object",
-  "required": ["status", "confidence"],
-  "properties": {
-    "status": {"$ref": "#/$defs/status"},
-    "confidence": {"$ref": "#/$defs/confidence"},
-    "applied": {"type": "object"},
-    "error": {"$ref": "#/$defs/error"}
-  }
-}
+**Headless (for automation)**:
+```bash
+REW -nogui -api
 ```
 
-### `rew.set_measurement_naming`
-**Input**
-```json
-{
-  "type": "object",
-  "required": ["sessionId", "namePattern"],
-  "properties": {
-    "sessionId": {"type": "string"},
-    "namePattern": {"type": "string"},
-    "notes": {"type": "string"}
-  }
-}
-```
-**Output**
-```json
-{
-  "type": "object",
-  "required": ["status", "confidence"],
-  "properties": {
-    "status": {"$ref": "#/$defs/status"},
-    "confidence": {"$ref": "#/$defs/confidence"},
-    "error": {"$ref": "#/$defs/error"}
-  }
-}
+> "you must use the application shutdown command to close REW when done" — [REW API Help](https://www.roomeqwizard.com/help/help_en-GB/html/api.html)
+
+**Custom port**:
+```bash
+REW -api -port 4567
 ```
 
-### `rew.run_sweep`
-**Input**
-```json
-{
-  "type": "object",
-  "required": ["sessionId"],
-  "properties": {
-    "sessionId": {"type": "string"},
-    "command": {"type": "string", "default": "start"},
-    "timeoutMs": {"type": "integer", "default": 120000}
-  }
-}
-```
-**Output**
-```json
-{
-  "type": "object",
-  "required": ["status", "confidence"],
-  "properties": {
-    "status": {"$ref": "#/$defs/status"},
-    "confidence": {"$ref": "#/$defs/confidence"},
-    "measurementId": {"type": "string"},
-    "progress": {"type": "array", "items": {"type": "string"}},
-    "error": {"$ref": "#/$defs/error"}
-  }
-}
-```
+---
 
-### `rew.cancel_measurement`
-**Input**
-```json
-{
-  "type": "object",
-  "required": ["sessionId"],
-  "properties": {"sessionId": {"type": "string"}}
-}
-```
-**Output**
-```json
-{
-  "type": "object",
-  "required": ["status", "confidence"],
-  "properties": {
-    "status": {"$ref": "#/$defs/status"},
-    "confidence": {"$ref": "#/$defs/confidence"},
-    "error": {"$ref": "#/$defs/error"}
-  }
-}
-```
+## Testing Plan
 
-### `rew.list_measurements`
-**Input**
-```json
-{
-  "type": "object",
-  "properties": {
-    "includeDetails": {"type": "boolean", "default": false}
-  }
-}
-```
-**Output**
-```json
-{
-  "type": "object",
-  "required": ["status", "confidence", "measurements"],
-  "properties": {
-    "status": {"$ref": "#/$defs/status"},
-    "confidence": {"$ref": "#/$defs/confidence"},
-    "measurements": {
-      "type": "array",
-      "items": {"type": "object"}
-    },
-    "error": {"$ref": "#/$defs/error"}
-  }
-}
-```
+### Unit Tests
+- Decoding Base64 frequency response data
+- Peak/null detection algorithms
+- Band summary calculations
+- Comparison logic
 
-### `rew.export_measurement`
-**Input**
-```json
-{
-  "type": "object",
-  "required": ["sessionId", "measurementId", "format", "dataType"],
-  "properties": {
-    "sessionId": {"type": "string"},
-    "measurementId": {"type": "string"},
-    "format": {"type": "string", "enum": ["csv", "txt"]},
-    "dataType": {"type": "string", "enum": ["frequency_response", "impulse_response"]},
-    "targetPath": {"type": "string"}
-  }
-}
-```
-**Output**
-```json
-{
-  "type": "object",
-  "required": ["status", "confidence"],
-  "properties": {
-    "status": {"$ref": "#/$defs/status"},
-    "confidence": {"$ref": "#/$defs/confidence"},
-    "exportPath": {"type": "string"},
-    "error": {"$ref": "#/$defs/error"}
-  }
-}
-```
+### Integration Tests (requires REW running with `-api`)
+1. Health check
+2. List measurements
+3. Get measurement data
+4. Save measurements
 
-### `rew.analyze_measurement`
-**Input**
-```json
-{
-  "type": "object",
-  "required": ["sessionId", "measurementId"],
-  "properties": {
-    "sessionId": {"type": "string"},
-    "measurementId": {"type": "string"},
-    "analysisProfile": {"type": "string", "enum": ["placement", "glm_validation"]}
-  }
-}
-```
-**Output**
-```json
-{
-  "type": "object",
-  "required": ["status", "confidence", "summary"],
-  "properties": {
-    "status": {"$ref": "#/$defs/status"},
-    "confidence": {"$ref": "#/$defs/confidence"},
-    "summary": {"type": "object"},
-    "bands": {"type": "array", "items": {"type": "object"}},
-    "peaks": {"type": "array", "items": {"type": "object"}},
-    "nulls": {"type": "array", "items": {"type": "object"}},
-    "sanity": {"type": "object"},
-    "error": {"$ref": "#/$defs/error"}
-  }
-}
-```
+### Golden Path Scenario
+1. Health check → confirm API accessible
+2. List existing measurements
+3. Retrieve frequency response for a measurement
+4. Analyze the measurement locally
+5. Compare two measurements
 
-### `rew.compare_measurements`
-**Input**
-```json
-{
-  "type": "object",
-  "required": ["baselineMeasurementId", "compareMeasurementId"],
-  "properties": {
-    "baselineMeasurementId": {"type": "string"},
-    "compareMeasurementId": {"type": "string"},
-    "mode": {"type": "string", "enum": ["pre_post", "lr_symmetry", "placement"]}
-  }
-}
-```
-**Output**
-```json
-{
-  "type": "object",
-  "required": ["status", "confidence", "deltas"],
-  "properties": {
-    "status": {"$ref": "#/$defs/status"},
-    "confidence": {"$ref": "#/$defs/confidence"},
-    "deltas": {"type": "object"},
-    "topDivergences": {"type": "array", "items": {"type": "object"}},
-    "error": {"$ref": "#/$defs/error"}
-  }
-}
-```
+---
 
-### `rew.session_run_sequence`
-**Input**
-```json
-{
-  "type": "object",
-  "required": ["sessionId", "sequence"],
-  "properties": {
-    "sessionId": {"type": "string"},
-    "sequence": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["label", "command"],
-        "properties": {
-          "label": {"type": "string"},
-          "command": {"type": "string", "enum": ["L", "R", "Both", "Repeat"]},
-          "notes": {"type": "string"}
-        }
-      }
-    }
-  }
-}
-```
-**Output**
-```json
-{
-  "type": "object",
-  "required": ["status", "confidence", "results"],
-  "properties": {
-    "status": {"$ref": "#/$defs/status"},
-    "confidence": {"$ref": "#/$defs/confidence"},
-    "results": {"type": "array", "items": {"type": "object"}},
-    "error": {"$ref": "#/$defs/error"}
-  }
-}
-```
+## References
 
-## 6) Measurement session state machine
+1. **REW API Documentation**: https://www.roomeqwizard.com/help/help_en-GB/html/api.html
+2. **REW Pro Upgrade** (required for automated measurements): https://www.roomeqwizard.com/upgrades.html
+3. **MCP TypeScript SDK**: https://github.com/modelcontextprotocol/typescript-sdk
+4. **Model Context Protocol Specification**: https://modelcontextprotocol.io/
 
-```
-IDLE
-  └─(configure request + 2xx responses)→ CONFIGURING
-CONFIGURING
-  └─(all GET verifies match desired config)→ READY
-READY
-  └─(run sweep command 2xx)→ RUNNING
-RUNNING
-  ├─(subscription progress “complete” + new measurement in /measurements)→ WAITING_EXPORT
-  ├─(cancel command 2xx)→ CANCELLED
-  └─(timeout + 1 retry exhausted)→ FAILED
-WAITING_EXPORT
-  └─(export command 2xx)→ EXPORTING
-EXPORTING
-  └─(artifact exists + parseable)→ PARSING
-PARSING
-  └─(parse success)→ ANALYZING
-ANALYZING
-  └─(analysis done)→ COMPLETE
-FAILED
-CANCELLED
-```
+---
 
-**Transition evidence**
-- A state transition only occurs after a 2xx response and/or a documented progress event (subscription) plus local artifact verification.
-- If progress events are missing, the server waits until timeout and retries once.
+## License
 
-## 7) Error taxonomy + remediation guidance
-
-**Connectivity**
-- `ERR_REW_UNREACHABLE`: connection refused or timeout; verify REW running with `-api` and correct port.
-- `ERR_REW_NONLOCAL_BLOCKED`: host not loopback; enforce localhost-only unless explicitly configured.
-
-**Configuration**
-- `ERR_INVALID_PARAM`: REW rejects payload (4xx). Remediate by validating against choices endpoints.
-- `ERR_UNSUPPORTED_UNIT`: level unit not in `/measure/level/units`.
-
-**Measurement lifecycle**
-- `ERR_MEASURE_BUSY`: REW reports busy/409; retry once after delay.
-- `ERR_MEASURE_TIMEOUT`: no completion progress within timeout.
-- `ERR_MEASURE_CANCELLED`: cancellation confirmed.
-
-**Export/parsing**
-- `ERR_EXPORT_FAILED`: export command 4xx/5xx.
-- `ERR_ARTIFACT_MISSING`: expected file not found.
-- `ERR_PARSE_FAILED`: exported data not parseable or empty.
-
-**Analysis**
-- `ERR_ANALYSIS_INCOMPLETE`: missing or insufficient data for requested metrics.
-
-## 7.1) Deterministic analysis rules (explicit)
-
-**Frequency bands (SPL averages + deltas):**
-- 20–80 Hz, 80–200 Hz, 200–500 Hz, 500–2 kHz, 2–10 kHz, 10 kHz+.
-
-**Peak/null detection:**
-- Peaks: local maxima ≥ +5 dB over local moving average, minimum 1/6th octave width.
-- Nulls: local minima ≤ −6 dB under local moving average, minimum 1/6th octave width.
-
-**Symmetry metrics (L/R):**
-- RMS delta per band.
-- Max divergence frequencies (top 3 by absolute delta).
-
-**Sanity checks:**
-- Export parseable and non-empty.
-- Noise floor (estimate from lowest 10% energy bins if explicit noise floor not present).
-- Clipping flags: if REW provides a flag, use it; otherwise detect saturation in IR samples when present.
-
-**Confidence scoring:**
-- High: all sanity checks pass, expected sweep length present, and noise floor below threshold.
-- Medium: minor gaps or partial data, no critical failures.
-- Low: parse failures, missing bands, or high noise floor uncertainty.
-
-## 8) Testing plan
-
-### Unit tests
-- Pure analysis functions: peak/null detection, band summaries, symmetry, confidence.
-- Use fixture exports (`tests/fixtures/exports/*`).
-
-### Integration tests (requires REW running with `-api`)
-**Windows**
-- `"C:\\Program Files\\REW\\REW.exe" -api` (optional `-port 4735`).
-
-**macOS**
-- `/Applications/REW.app/Contents/MacOS/REW -api` (optional `-port 4735`).
-
-**Headless**
-- `REW -nogui -api` for automation; must call application shutdown command when done (documented in REW API help).
-
-### Golden path scenario
-1) Health check
-2) Configure sweep
-3) Set naming to `Session-{sessionId}-{channel}` and notes
-4) Run L sweep → export FR/IR → analyze
-5) Run R sweep → export FR/IR → analyze
-6) Compare L vs R and pre/post, produce report
-
-## 9) Future extensions
-- Subscribe to `/measurements` and `/groups` for real-time updates.
-- Use alignment tool endpoints when documented.
-- Generator-based pink noise checks to validate noise floor and SPL stability.
-
-## 10) REW endpoint inventory (exact endpoints + methods)
-
-**Measure commands**
-- `GET /measure/commands`
-- `POST /measure/command` with `{ "command": "start" }` or `{ "command": "cancel" }`
-
-**Sweep configuration**
-- `GET|POST|PUT /measure/sweep/configuration` with `{ startFreq, endFreq, length, dither }`
-
-**Measurement level**
-- `GET|POST|PUT /measure/level` with `{ level, unit }`
-- `GET /measure/level/units`
-
-**Playback mode**
-- `GET|POST|PUT /measure/playback-mode` with `{ mode }`
-- `GET /measure/playback-mode/choices`
-- `POST /measure/file-playback-stimulus` with `{ path }`
-
-**Measurement mode**
-- `GET|POST|PUT /measure/measurement-mode` with `{ mode }`
-- `GET /measure/measurement-mode/choices`
-- `GET|POST|PUT /measure/sequential-channels` with `{ channels }`
-- `GET /measure/sequential-choices`
-
-**Timing**
-- `GET|POST|PUT /measure/timing` with `{ reference, mode }`
-- `GET|POST|PUT /measure/timing-offset` with `{ offsetMs }`
-
-**Start delay**
-- `GET|POST|PUT /measure/start-delay` with `{ seconds }`
-
-**Protection options**
-- `GET|POST|PUT /measure/protection-options` with `{ abortOnClipping, abortOnSPL, clipThreshold, splThreshold }`
-
-**Progress subscriptions**
-- Subscribe to `/measure` to receive progress strings (avoid polling when possible).
-
-**Measurements management**
-- `GET /measurements`
-- `GET /measurements/commands`
-- `POST /measurements/command` with `{ command, options }` (e.g., export, save-all)
-- `GET /measurements/:id` (supports numeric index or UUID)
-
-**Optional generator**
-- `GET /generator/status`
-- `GET|POST /generator/signal`
-- `GET /generator/signals`
-- `GET|POST /generator/level`
-- `GET|POST /generator/frequency`
-- `POST /generator/commands`
+[Specify license]
