@@ -16,6 +16,9 @@ import { executeImpulse, ImpulseInputSchema } from './impulse.js';
 import { executeGLMInterpret, GLMInterpretInputSchema } from './glm-interpret.js';
 import { executeAveraging, AveragingInputSchema } from './averaging.js';
 import { executeSubIntegration, SubIntegrationInputSchema } from './sub-integration.js';
+import { executeApiConnect, ApiConnectInputSchema } from './api-connect.js';
+import { executeApiListMeasurements, ApiListMeasurementsInputSchema } from './api-list-measurements.js';
+import { executeApiGetMeasurement, ApiGetMeasurementInputSchema } from './api-get-measurement.js';
 
 /**
  * Register all tools with the MCP server
@@ -64,6 +67,21 @@ export function registerTools(server: Server): void {
           name: 'rew.analyze_sub_integration',
           description: 'Analyze subwoofer integration with main speakers. Evaluates phase alignment, timing, and polarity at the crossover region. Provides delay and polarity recommendations for optimal summation.',
           inputSchema: zodToJsonSchema(SubIntegrationInputSchema)
+        },
+        {
+          name: 'rew.api_connect',
+          description: 'Connect to a running REW instance\'s REST API. REW must be launched with -api flag or have API enabled in preferences. Default port is 4735.',
+          inputSchema: zodToJsonSchema(ApiConnectInputSchema)
+        },
+        {
+          name: 'rew.api_list_measurements',
+          description: 'List all measurements available in the connected REW instance. Requires prior connection via rew.api_connect.',
+          inputSchema: zodToJsonSchema(ApiListMeasurementsInputSchema)
+        },
+        {
+          name: 'rew.api_get_measurement',
+          description: 'Fetch a measurement directly from REW via API. Use UUID (not index) to identify measurements, as indices shift when measurements are added/removed.',
+          inputSchema: zodToJsonSchema(ApiGetMeasurementInputSchema)
         }
       ]
     };
@@ -107,6 +125,18 @@ export function registerTools(server: Server): void {
           
         case 'rew.analyze_sub_integration':
           result = await executeSubIntegration(args as any);
+          break;
+          
+        case 'rew.api_connect':
+          result = await executeApiConnect(args as any);
+          break;
+          
+        case 'rew.api_list_measurements':
+          result = await executeApiListMeasurements(args as any);
+          break;
+          
+        case 'rew.api_get_measurement':
+          result = await executeApiGetMeasurement(args as any);
           break;
           
         default:
