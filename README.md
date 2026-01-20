@@ -110,7 +110,11 @@ Add this to your `claude_desktop_config.json`:
 
 ### Usage with Cursor
 
-**For Cursor v0.48.6+**
+For quick installation, click the installation button below:
+
+[![Install with NPX in Cursor](https://img.shields.io/badge/Cursor-Install_MCP-black?style=flat-square&logo=cursor&logoColor=white)](https://cursor.com/install-mcp?name=rew-mcp&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsInJldy1tY3AiXX0%3D)
+
+**Manual Installation for Cursor v0.48.6+**
 
 1. Open Cursor Settings
 2. Go to Features > MCP Servers
