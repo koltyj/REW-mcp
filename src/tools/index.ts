@@ -15,6 +15,7 @@ import { executeDecay, DecayInputSchema } from './decay.js';
 import { executeImpulse, ImpulseInputSchema } from './impulse.js';
 import { executeGLMInterpret, GLMInterpretInputSchema } from './glm-interpret.js';
 import { executeAveraging, AveragingInputSchema } from './averaging.js';
+import { executeSubIntegration, SubIntegrationInputSchema } from './sub-integration.js';
 
 /**
  * Register all tools with the MCP server
@@ -58,6 +59,11 @@ export function registerTools(server: Server): void {
           name: 'rew.average_measurements',
           description: 'Create a spatial average from multiple measurement positions. Implements REW\'s averaging methods: RMS (incoherent, recommended for spatial averaging), Vector (coherent, requires phase data), or hybrid methods. Useful for multi-position room calibration.',
           inputSchema: zodToJsonSchema(AveragingInputSchema)
+        },
+        {
+          name: 'rew.analyze_sub_integration',
+          description: 'Analyze subwoofer integration with main speakers. Evaluates phase alignment, timing, and polarity at the crossover region. Provides delay and polarity recommendations for optimal summation.',
+          inputSchema: zodToJsonSchema(SubIntegrationInputSchema)
         }
       ]
     };
@@ -97,6 +103,10 @@ export function registerTools(server: Server): void {
           
         case 'rew.average_measurements':
           result = await executeAveraging(args as any);
+          break;
+          
+        case 'rew.analyze_sub_integration':
+          result = await executeSubIntegration(args as any);
           break;
           
         default:

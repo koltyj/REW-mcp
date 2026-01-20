@@ -7,3 +7,4 @@ export * from './room-modes.js';
 export * from './decay.js';
 export * from './reflections.js';
 export * from './averaging.js';
+export * from './sub-integration.js';
