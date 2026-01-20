@@ -25,8 +25,6 @@ async function main() {
     {
       capabilities: {
         tools: {},
-        resources: {},
-        prompts: {},
         logging: {}
       }
     }

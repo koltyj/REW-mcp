@@ -177,31 +177,126 @@ export function calculateT30(schroeder: SchroederCurve): number | null {
 }
 
 /**
+ * Calculate linear regression slope and intercept for a range of the decay curve
+ * Returns { slope, intercept } where y = slope * x + intercept
+ */
+function calculateRegressionLine(
+  time_ms: number[],
+  energy_db: number[],
+  startDb: number,
+  endDb: number
+): { slope: number; intercept: number; startTime: number; endTime: number } | null {
+  const startTime = findTimeAtLevel(time_ms, energy_db, startDb);
+  const endTime = findTimeAtLevel(time_ms, energy_db, endDb);
+  
+  if (startTime === null || endTime === null || endTime <= startTime) {
+    return null;
+  }
+  
+  // Calculate slope (dB per ms)
+  const slope = (endDb - startDb) / (endTime - startTime);
+  // Calculate intercept: startDb = slope * startTime + intercept
+  const intercept = startDb - slope * startTime;
+  
+  return { slope, intercept, startTime, endTime };
+}
+
+/**
+ * Find intersection point of two regression lines
+ * Returns the time (in ms) where the lines intersect
+ */
+function findRegressionIntersection(
+  line1: { slope: number; intercept: number },
+  line2: { slope: number; intercept: number }
+): number | null {
+  // line1: y = slope1 * x + intercept1
+  // line2: y = slope2 * x + intercept2
+  // At intersection: slope1 * x + intercept1 = slope2 * x + intercept2
+  // x = (intercept2 - intercept1) / (slope1 - slope2)
+  
+  const slopeDiff = line1.slope - line2.slope;
+  if (Math.abs(slopeDiff) < 1e-10) {
+    // Lines are parallel, no intersection
+    return null;
+  }
+  
+  return (line2.intercept - line1.intercept) / slopeDiff;
+}
+
+/**
  * Calculate Topt (per REW docs)
  *
  * REW's adaptive measure that "uses a start point based on the intersection
  * of the EDT and T30 regression lines"
  * 
- * This is a simplified implementation that uses the average of available methods.
+ * Implementation:
+ * 1. Calculate EDT regression line (0 to -10 dB)
+ * 2. Calculate T30 regression line (-5 to -35 dB)
+ * 3. Find intersection of these lines to get the optimal start point
+ * 4. Use T30 end point (-35 dB or noise floor) as end point
+ * 5. Extrapolate to 60 dB decay
  */
 export function calculateTopt(schroeder: SchroederCurve): number | null {
-  const t20 = calculateT20(schroeder);
-  const t30 = calculateT30(schroeder);
-  const edt = calculateEDT(schroeder);
+  const { time_ms, energy_db } = schroeder;
   
-  // Use weighted average prioritizing T30
-  const values: number[] = [];
-  if (t30 !== null) values.push(t30 * 0.5);
-  if (t20 !== null) values.push(t20 * 0.3);
-  if (edt !== null) values.push(edt * 0.2);
+  // Calculate EDT regression line (0 to -10 dB)
+  const edtLine = calculateRegressionLine(time_ms, energy_db, 0, -10);
   
-  if (values.length === 0) return null;
+  // Calculate T30 regression line (-5 to -35 dB)
+  const t30Line = calculateRegressionLine(time_ms, energy_db, -5, -35);
   
-  const totalWeight = values.length > 0 
-    ? (t30 !== null ? 0.5 : 0) + (t20 !== null ? 0.3 : 0) + (edt !== null ? 0.2 : 0)
-    : 0;
+  if (!edtLine || !t30Line) {
+    // Fall back to T30 or T20 if regression lines can't be calculated
+    const t30 = calculateT30(schroeder);
+    if (t30 !== null) return t30;
+    
+    const t20 = calculateT20(schroeder);
+    return t20;
+  }
   
-  return values.reduce((a, b) => a + b, 0) / totalWeight;
+  // Find intersection of EDT and T30 regression lines
+  const intersectionTime = findRegressionIntersection(edtLine, t30Line);
+  
+  if (intersectionTime === null || intersectionTime < 0) {
+    // If no valid intersection, fall back to T30
+    return calculateT30(schroeder);
+  }
+  
+  // Calculate dB level at intersection point using T30 line
+  const intersectionDb = t30Line.slope * intersectionTime + t30Line.intercept;
+  
+  // Use the intersection as start point and -35 dB as end point
+  // (or noise floor if higher)
+  const noiseFloor = estimateNoiseFloor(schroeder);
+  const endDb = Math.max(-35, noiseFloor + 5); // Stay 5 dB above noise floor
+  
+  // Find end time at endDb level
+  const endTime = findTimeAtLevel(time_ms, energy_db, endDb);
+  
+  if (endTime === null || endTime <= intersectionTime) {
+    // Fall back to T30 if we can't find valid end point
+    return calculateT30(schroeder);
+  }
+  
+  // Calculate decay time from intersection to end
+  const decayRange = Math.abs(endDb - intersectionDb);
+  const decayTime_ms = endTime - intersectionTime;
+  
+  if (decayRange < 5 || decayTime_ms <= 0) {
+    // Not enough range for reliable measurement
+    return calculateT30(schroeder);
+  }
+  
+  // Extrapolate to 60 dB decay
+  const extrapolationFactor = 60 / decayRange;
+  const topt_seconds = (decayTime_ms / 1000) * extrapolationFactor;
+  
+  // Sanity check: Topt should be in reasonable range
+  if (topt_seconds < 0.01 || topt_seconds > 10) {
+    return calculateT30(schroeder);
+  }
+  
+  return topt_seconds;
 }
 
 /**
@@ -309,28 +404,164 @@ export function assessRT60Quality(
 }
 
 /**
- * Estimate T60 for specific frequency band
- * This is a simplified version - in practice would need filtered IR
+ * Apply a 2nd-order Butterworth bandpass filter to the samples
+ * 
+ * This is a simplified IIR filter implementation for octave-band filtering
+ * per ISO 3382 requirements for frequency-specific RT60 analysis.
+ * 
+ * @param samples - Input samples to filter
+ * @param sampleRate - Sample rate in Hz
+ * @param centerFreq - Center frequency of the bandpass filter
+ * @param bandwidth - Bandwidth in octaves (default: 1 for octave bands)
+ */
+function applyBandpassFilter(
+  samples: number[],
+  sampleRate: number,
+  centerFreq: number,
+  bandwidth: number = 1
+): number[] {
+  // Calculate lower and upper cutoff frequencies for the bandpass
+  const ratio = Math.pow(2, bandwidth / 2);
+  const lowCutoff = centerFreq / ratio;
+  const highCutoff = centerFreq * ratio;
+  
+  // Normalize frequencies to Nyquist
+  const nyquist = sampleRate / 2;
+  const lowNorm = lowCutoff / nyquist;
+  const highNorm = highCutoff / nyquist;
+  
+  // Clamp to valid range
+  const lowNormClamped = Math.max(0.001, Math.min(0.999, lowNorm));
+  const highNormClamped = Math.max(lowNormClamped + 0.001, Math.min(0.999, highNorm));
+  
+  // Design 2nd-order Butterworth bandpass filter coefficients
+  // Using bilinear transform approximation
+  const w0Low = Math.tan(Math.PI * lowNormClamped);
+  const w0High = Math.tan(Math.PI * highNormClamped);
+  const bw = w0High - w0Low;
+  const w02 = w0Low * w0High;
+  
+  // Filter coefficients for bandpass
+  const sqrt2 = Math.SQRT2;
+  const K = bw;
+  const K2 = K * K;
+  const norm = 1 / (1 + sqrt2 * K + K2 + w02 * (1 + sqrt2 * K + K2));
+  
+  // Simplified 2nd-order bandpass coefficients
+  const b0 = K * norm;
+  const b1 = 0;
+  const b2 = -K * norm;
+  const a1 = 2 * (w02 * (1 + sqrt2 * K + K2) - 1) * norm;
+  const a2 = (1 - sqrt2 * K + K2 + w02 * (1 - sqrt2 * K + K2)) * norm;
+  
+  // Apply filter (direct form II transposed)
+  const output = new Array(samples.length).fill(0);
+  let z1 = 0, z2 = 0;
+  
+  for (let i = 0; i < samples.length; i++) {
+    const x = samples[i];
+    const y = b0 * x + z1;
+    z1 = b1 * x - a1 * y + z2;
+    z2 = b2 * x - a2 * y;
+    output[i] = y;
+  }
+  
+  // Apply filter again in reverse for zero-phase filtering
+  z1 = 0;
+  z2 = 0;
+  for (let i = samples.length - 1; i >= 0; i--) {
+    const x = output[i];
+    const y = b0 * x + z1;
+    z1 = b1 * x - a1 * y + z2;
+    z2 = b2 * x - a2 * y;
+    output[i] = y;
+  }
+  
+  return output;
+}
+
+/**
+ * Estimate T60 for specific frequency band using bandpass filtering
+ * 
+ * Per ISO 3382-1 and REW methodology:
+ * 1. Apply bandpass filter centered at the target frequency
+ * 2. Build Schroeder curve from filtered impulse response
+ * 3. Calculate T30 from the filtered decay
+ * 
+ * @param ir - Impulse response data
+ * @param frequency_hz - Center frequency for analysis
+ * @param bandwidth - Filter bandwidth in octaves (default: 1)
  */
 export function estimateT60AtFrequency(
   ir: ImpulseResponseData,
-  frequency_hz: number
+  frequency_hz: number,
+  bandwidth: number = 1
 ): number {
-  // For now, use overall T60 with frequency-dependent scaling
-  // A real implementation would apply a bandpass filter around frequency_hz
-  const schroeder = buildSchroederCurve(ir);
+  const { samples, sample_rate_hz, peak_index } = ir;
+  
+  // Validate frequency is within analyzable range
+  const nyquist = sample_rate_hz / 2;
+  if (frequency_hz < 20 || frequency_hz > nyquist * 0.9) {
+    // Outside analyzable range, return default
+    return 0.3;
+  }
+  
+  // Apply bandpass filter to the samples
+  const filteredSamples = applyBandpassFilter(
+    samples,
+    sample_rate_hz,
+    frequency_hz,
+    bandwidth
+  );
+  
+  // Find new peak in filtered data (may shift slightly)
+  let filteredPeakIndex = peak_index;
+  let maxVal = 0;
+  const searchWindow = Math.floor(sample_rate_hz * 0.01); // 10ms search window
+  const searchStart = Math.max(0, peak_index - searchWindow);
+  const searchEnd = Math.min(filteredSamples.length - 1, peak_index + searchWindow);
+  
+  for (let i = searchStart; i <= searchEnd; i++) {
+    const absVal = Math.abs(filteredSamples[i]);
+    if (absVal > maxVal) {
+      maxVal = absVal;
+      filteredPeakIndex = i;
+    }
+  }
+  
+  // Create filtered IR data structure
+  const filteredIR: ImpulseResponseData = {
+    samples: filteredSamples,
+    sample_rate_hz: sample_rate_hz,
+    peak_index: filteredPeakIndex,
+    start_time_s: 0,
+    duration_s: filteredSamples.length / sample_rate_hz
+  };
+  
+  // Build Schroeder curve from filtered data
+  const schroeder = buildSchroederCurve(filteredIR);
+  
+  // Calculate T30 from filtered decay
   const t30 = calculateT30(schroeder);
   
-  // Apply rough frequency-dependent scaling
-  // Lower frequencies typically decay slower due to room modes
-  let scaleFactor = 1.0;
-  if (frequency_hz < 80) scaleFactor = 1.4;
-  else if (frequency_hz < 150) scaleFactor = 1.2;
-  else if (frequency_hz < 300) scaleFactor = 1.1;
-  else if (frequency_hz > 2000) scaleFactor = 0.8;
-  else if (frequency_hz > 1000) scaleFactor = 0.9;
+  if (t30 !== null && t30 > 0.01 && t30 < 10) {
+    return t30;
+  }
   
-  return (t30 ?? 0.3) * scaleFactor;
+  // Try T20 if T30 fails
+  const t20 = calculateT20(schroeder);
+  if (t20 !== null && t20 > 0.01 && t20 < 10) {
+    return t20;
+  }
+  
+  // Fall back to EDT if both fail
+  const edt = calculateEDT(schroeder);
+  if (edt !== null && edt > 0.01 && edt < 10) {
+    return edt;
+  }
+  
+  // Last resort: return a reasonable default
+  return 0.3;
 }
 
 /**
