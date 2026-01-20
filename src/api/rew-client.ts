@@ -364,9 +364,17 @@ export class REWApiClient {
   }
 
   /**
-   * Get waterfall data (requires REW Pro for automation)
+   * Get waterfall data
+   * 
+   * @deprecated This endpoint may not exist in the official REW API.
+   * Per audit (Jan 2026): No evidence found in official REW API documentation
+   * for a direct waterfall data retrieval endpoint. The API supports generating
+   * waterfall graphs via commands but may not stream raw waterfall matrix data.
+   * Consider deriving waterfall data from impulse response instead.
    */
   async getWaterfallData(uuid: string): Promise<WaterfallData | null> {
+    console.warn('REW API: getWaterfallData endpoint may not exist in official REW API');
+    
     const response = await this.request('GET', `/measurements/${uuid}/waterfall`);
     
     if (response.status !== 200 || !response.data) {

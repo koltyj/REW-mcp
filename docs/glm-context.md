@@ -26,16 +26,19 @@ GLM applies **cuts only, never boosts** (with rare exceptions for high frequenci
 
 **Interpretation rule**: If a null exists post-GLM, it existed pre-GLM. GLM did not cause it.
 
-### 2. Focus on Low Frequencies
+### 2. Focus on Low and Low-Mid Frequencies
 
-GLM prioritizes correction below ~500 Hz where:
+GLM prioritizes correction in the **low and low-mid frequency range** (primarily below ~1 kHz) where:
 - Room modes dominate
 - Correction is most effective
 - Human hearing is less sensitive to small changes
 
+Per Genelec documentation: "compensation targeting low and low-mid frequencies to minimise the detrimental room acoustic anomalies"
+
 **Why this matters**:
 - High frequency issues may remain unchanged
 - Speaker placement affects HF more than GLM can correct
+- Full audible spectrum capability exists, but focus is on bass region
 
 ### 3. In-Room Target Response
 

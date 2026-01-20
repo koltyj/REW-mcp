@@ -17,6 +17,7 @@ import { registerTools } from './tools/index.js';
  */
 async function main() {
   // Create server instance
+  // Per MCP spec 2025-06-18: capabilities should declare specific options
   const server = new Server(
     {
       name: 'rew-mcp',
@@ -24,7 +25,9 @@ async function main() {
     },
     {
       capabilities: {
-        tools: {},
+        tools: {
+          listChanged: true  // Indicate tool list can change dynamically
+        },
         logging: {}
       }
     }

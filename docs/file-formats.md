@@ -119,7 +119,13 @@ def parse_rew_frequency_response_text(content: str) -> Measurement:
 1. Select measurement in REW
 2. File → Export → Export impulse response as text
 
-### Official Format (from REW docs)
+### Supported Formats
+
+The parser supports **two impulse response text formats**:
+
+#### Format A: 1-Column (Header + Amplitude Values)
+
+This is the format documented in REW's official documentation:
 
 ```
 Impulse Response data saved by REW V5.19
@@ -143,7 +149,20 @@ Response measured over: 2.2 to 24,000.0 Hz
 ...
 ```
 
-### Header Fields
+#### Format B: 2-Column (Time, Amplitude)
+
+Common alternative export format with explicit time values:
+
+```
+* REW V5.30 impulse response
+* Sample Rate: 48000
+0.000000	0.000123
+0.000021	0.000456
+0.000042	-0.000234
+...
+```
+
+### Header Fields (Format A)
 
 | Field | Description |
 |-------|-------------|
@@ -155,10 +174,20 @@ Response measured over: 2.2 to 24,000.0 Hz
 
 ### Parsing Rules
 
+**Format Detection:**
+- If first data line has 1 numeric value → 1-column format
+- If first data line has 2+ numeric values → 2-column format
+
+**1-Column Format:**
 1. Parse header lines until blank line
-2. Extract numeric metadata from lines with `//` comments
+2. Extract sample rate from `Sample interval` or `Sample Rate` header
 3. Parse sample values (one per line, scientific notation)
-4. Calculate sample rate: `1 / sample_interval`
+4. Generate time values from sample indices
+
+**2-Column Format:**
+1. Parse comment lines starting with `*`
+2. Split each data line by whitespace/tab/comma
+3. Column 1 = time (seconds), Column 2 = amplitude
 
 ---
 

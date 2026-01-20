@@ -242,6 +242,10 @@ export function parseFrequencyResponse(content: string): ParseResult {
 
 /**
  * Parse impulse response text export
+ * 
+ * Supports both formats:
+ * - 2-column format: Time (seconds), Amplitude (common REW export)
+ * - 1-column format: Header with sample rate, followed by amplitude values only
  */
 export function parseImpulseResponse(content: string): {
   impulse_response: ImpulseResponseData;
@@ -254,13 +258,44 @@ export function parseImpulseResponse(content: string): {
   
   const lines = content.split('\n');
   
-  // Parse data lines
+  // Detect format by checking first few data lines
+  let is1ColumnFormat = false;
+  let headerSampleRate: number | null = null;
+  
+  // Look for sample rate in header comments
+  for (const line of lines) {
+    if (!line.startsWith('*')) continue;
+    const lower = line.toLowerCase();
+    // Look for sample rate in header (e.g., "* Sample Rate: 48000")
+    const sampleRateMatch = lower.match(/sample\s*rate[:\s]+(\d+)/i);
+    if (sampleRateMatch) {
+      headerSampleRate = parseInt(sampleRateMatch[1], 10);
+    }
+  }
+  
+  // Check first data line to determine format
+  const dataLines = lines.filter(l => !l.startsWith('*') && l.trim());
+  if (dataLines.length > 0) {
+    const firstLineParts = dataLines[0].trim().split(/[\s,\t]+/);
+    // If only 1 part, it's 1-column format (amplitude only)
+    if (firstLineParts.length === 1 && !isNaN(parseNumber(firstLineParts[0]))) {
+      is1ColumnFormat = true;
+    }
+  }
+  
+  // Parse data lines based on detected format
   for (const line of lines) {
     if (line.startsWith('*') || !line.trim()) continue;
     
     const parts = line.trim().split(/[\s,\t]+/);
     
-    if (parts.length >= 2) {
+    if (is1ColumnFormat && parts.length >= 1) {
+      // 1-column format: amplitude only, generate time from index
+      const value = parseNumber(parts[0]);
+      if (isNaN(value)) continue;
+      samples.push(value);
+    } else if (parts.length >= 2) {
+      // 2-column format: time, amplitude
       const time = parseNumber(parts[0]);
       const value = parseNumber(parts[1]);
       
@@ -268,6 +303,21 @@ export function parseImpulseResponse(content: string): {
       
       times.push(time);
       samples.push(value);
+    }
+  }
+  
+  // For 1-column format, generate times from sample rate
+  if (is1ColumnFormat && samples.length > 0) {
+    const sampleRate = headerSampleRate || 48000; // Default to 48kHz
+    for (let i = 0; i < samples.length; i++) {
+      times.push(i / sampleRate);
+    }
+    if (!headerSampleRate) {
+      warnings.push({
+        type: 'assumed_sample_rate',
+        message: 'No sample rate found in header, assuming 48000 Hz',
+        severity: 'warning'
+      });
     }
   }
   

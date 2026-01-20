@@ -31,61 +31,73 @@ export function registerTools(server: Server): void {
       tools: [
         {
           name: 'rew.ingest_measurement',
+          title: 'REW Measurement Ingestion',
           description: 'Parse and store a REW measurement export for analysis. Accepts frequency response or impulse response data in REW text export format.',
           inputSchema: zodToJsonSchema(IngestInputSchema)
         },
         {
           name: 'rew.compare_measurements',
+          title: 'Compare REW Measurements',
           description: 'Compare two or more REW measurements to determine what improved, worsened, or stayed the same. Supports pre/post GLM comparison, placement comparisons, and L/R symmetry analysis.',
           inputSchema: zodToJsonSchema(CompareInputSchema)
         },
         {
           name: 'rew.analyze_room_modes',
+          title: 'Analyze Room Modes',
           description: 'Analyze a measurement for room modes, peaks, and nulls. Optionally correlates detected issues with theoretical room modes based on room dimensions.',
           inputSchema: zodToJsonSchema(RoomModesInputSchema)
         },
         {
           name: 'rew.analyze_decay',
-          description: 'Analyze decay characteristics from impulse response data to identify frequencies with excessive ringing or resonance.',
+          title: 'Analyze Decay Times',
+          description: 'Analyze decay characteristics from impulse response data to identify frequencies with excessive ringing or resonance. Implements ISO 3382 compliant T20/T30/EDT calculations.',
           inputSchema: zodToJsonSchema(DecayInputSchema)
         },
         {
           name: 'rew.analyze_impulse',
+          title: 'Analyze Impulse Response',
           description: 'Analyze impulse response data to detect early reflections, estimate reflection paths, and assess their impact on sound quality.',
           inputSchema: zodToJsonSchema(ImpulseInputSchema)
         },
         {
           name: 'rew.interpret_with_glm_context',
+          title: 'GLM-Aware Interpretation',
           description: 'Interpret measurement analysis results considering Genelec GLM\'s capabilities and limitations. Explains what GLM can address, what requires physical solutions, and provides calibration-aware recommendations.',
           inputSchema: zodToJsonSchema(GLMInterpretInputSchema)
         },
         {
           name: 'rew.average_measurements',
+          title: 'Average Measurements',
           description: 'Create a spatial average from multiple measurement positions. Implements REW\'s averaging methods: RMS (incoherent, recommended for spatial averaging), Vector (coherent, requires phase data), or hybrid methods. Useful for multi-position room calibration.',
           inputSchema: zodToJsonSchema(AveragingInputSchema)
         },
         {
           name: 'rew.analyze_sub_integration',
+          title: 'Analyze Subwoofer Integration',
           description: 'Analyze subwoofer integration with main speakers. Evaluates phase alignment, timing, and polarity at the crossover region. Provides delay and polarity recommendations for optimal summation.',
           inputSchema: zodToJsonSchema(SubIntegrationInputSchema)
         },
         {
           name: 'rew.api_connect',
+          title: 'Connect to REW API',
           description: 'Connect to a running REW instance\'s REST API. REW must be launched with -api flag or have API enabled in preferences. Default port is 4735.',
           inputSchema: zodToJsonSchema(ApiConnectInputSchema)
         },
         {
           name: 'rew.api_list_measurements',
+          title: 'List REW Measurements',
           description: 'List all measurements available in the connected REW instance. Requires prior connection via rew.api_connect.',
           inputSchema: zodToJsonSchema(ApiListMeasurementsInputSchema)
         },
         {
           name: 'rew.api_get_measurement',
+          title: 'Get REW Measurement',
           description: 'Fetch a measurement directly from REW via API. Use UUID (not index) to identify measurements, as indices shift when measurements are added/removed.',
           inputSchema: zodToJsonSchema(ApiGetMeasurementInputSchema)
         },
         {
           name: 'rew.compare_to_target',
+          title: 'Compare to Target Curve',
           description: 'Compare a measurement against a target response curve. Supports flat, REW room curve (LF rise + HF fall), Harman curve, or custom curves. Provides deviation statistics and recommendations.',
           inputSchema: zodToJsonSchema(TargetCompareInputSchema)
         }
@@ -150,17 +162,9 @@ export function registerTools(server: Server): void {
           break;
           
         default:
-          return {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                status: 'error',
-                error_type: 'unknown_tool',
-                message: `Unknown tool: ${name}`
-              })
-            }],
-            isError: true
-          };
+          // Per MCP spec: Protocol errors (unknown tool) should throw Error
+          // to be handled as JSON-RPC error, not tool execution error
+          throw new Error(`Unknown tool: ${name}`)
       }
       
       // Format response per MCP specification

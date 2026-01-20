@@ -1,11 +1,19 @@
 /**
  * Decay Time Analysis
  * 
- * Estimates T60/T30/T20/Topt decay times from waterfall data or impulse response.
+ * Estimates T60/T30/T20/Topt/EDT decay times from waterfall data or impulse response.
+ * Implements ISO 3382-1:2009 compliant measurement methods.
  * 
  * References:
+ * - ISO 3382-1:2009 - Acoustics - Measurement of room acoustic parameters
+ * - ISO 3382-2:2008 - Reverberation time in ordinary rooms
  * - https://www.roomeqwizard.com/help/help_en-GB/html/graph_rt60.html
  * - https://www.roomeqwizard.com/help/help_en-GB/html/graph_rt60decay.html
+ * 
+ * ISO 3382 Compliance Notes:
+ * - T20: Slope measured from -5 dB to -25 dB, extrapolated by factor of 3 to 60 dB
+ * - T30: Slope measured from -5 dB to -35 dB, extrapolated by factor of 2 to 60 dB
+ * - EDT: Slope measured from 0 dB to -10 dB, extrapolated by factor of 6 to 60 dB
  */
 
 import type { ImpulseResponseData, DecayCharacter, Severity, ConfidenceLevel } from '../types/index.js';
@@ -48,7 +56,16 @@ export interface RT60BandResult {
 }
 
 /**
- * Generate Energy Time Curve (ETC) from impulse response
+ * Calculate Schroeder Integral (backward-integrated energy decay curve)
+ * 
+ * Note: This function calculates the Schroeder curve (integrated energy),
+ * not the raw ETC (Energy Time Curve). The ETC is h²(t), while this returns
+ * the backward integral ∫[t,∞] h²(τ)dτ used for RT60 calculations per ISO 3382.
+ * 
+ * The function name is kept as generateETC for backward compatibility,
+ * but it actually returns the Schroeder integral.
+ * 
+ * @alias calculateSchroederIntegral
  */
 export function generateETC(ir: ImpulseResponseData): {
   time_ms: number[];
@@ -114,10 +131,13 @@ function findTimeAtLevel(
 }
 
 /**
- * Calculate EDT (Early Decay Time) per REW docs
+ * Calculate EDT (Early Decay Time) per ISO 3382-1:2009
  * 
  * Measures slope from 0 dB to -10 dB on the Schroeder curve,
- * then extrapolates to 60 dB decay.
+ * then extrapolates by factor of 6 to estimate 60 dB decay time.
+ * 
+ * ISO 3382 Reference: EDT is derived from the initial 10 dB of decay
+ * and is more sensitive to early reflections than T20/T30.
  */
 export function calculateEDT(schroeder: SchroederCurve): number | null {
   const { time_ms, energy_db } = schroeder;
@@ -135,10 +155,13 @@ export function calculateEDT(schroeder: SchroederCurve): number | null {
 }
 
 /**
- * Calculate T20 (per REW docs)
+ * Calculate T20 per ISO 3382-1:2009
  *
- * "Measures slope between -5 dB and -25 dB on the Schroeder curve"
- * Then extrapolates to 60 dB decay.
+ * Measures slope between -5 dB and -25 dB on the Schroeder curve,
+ * then extrapolates by factor of 3 to estimate 60 dB decay time.
+ * 
+ * ISO 3382 Reference: T20 uses a 20 dB evaluation range starting 5 dB
+ * below the initial level to avoid the influence of the direct sound.
  */
 export function calculateT20(schroeder: SchroederCurve): number | null {
   const { time_ms, energy_db } = schroeder;
@@ -156,10 +179,13 @@ export function calculateT20(schroeder: SchroederCurve): number | null {
 }
 
 /**
- * Calculate T30 (per REW docs)
+ * Calculate T30 per ISO 3382-1:2009
  *
- * "Measures slope between -5 dB and -35 dB on the Schroeder curve"
- * Then extrapolates to 60 dB decay.
+ * Measures slope between -5 dB and -35 dB on the Schroeder curve,
+ * then extrapolates by factor of 2 to estimate 60 dB decay time.
+ * 
+ * ISO 3382 Reference: T30 uses a 30 dB evaluation range and is the
+ * preferred method when the decay curve has sufficient dynamic range.
  */
 export function calculateT30(schroeder: SchroederCurve): number | null {
   const { time_ms, energy_db } = schroeder;
@@ -652,6 +678,12 @@ export function classifyDecaySeverity(
   if (excess >= 0.1) return 'minor';
   return 'negligible';
 }
+
+/**
+ * Alias for generateETC - calculates Schroeder integral
+ * Preferred name for semantic accuracy
+ */
+export const calculateSchroederIntegral = generateETC;
 
 /**
  * Calculate clarity metrics from impulse response
