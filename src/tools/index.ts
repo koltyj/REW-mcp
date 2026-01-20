@@ -14,6 +14,12 @@ import { executeRoomModes, RoomModesInputSchema } from './room-modes.js';
 import { executeDecay, DecayInputSchema } from './decay.js';
 import { executeImpulse, ImpulseInputSchema } from './impulse.js';
 import { executeGLMInterpret, GLMInterpretInputSchema } from './glm-interpret.js';
+import { executeAveraging, AveragingInputSchema } from './averaging.js';
+import { executeSubIntegration, SubIntegrationInputSchema } from './sub-integration.js';
+import { executeApiConnect, ApiConnectInputSchema } from './api-connect.js';
+import { executeApiListMeasurements, ApiListMeasurementsInputSchema } from './api-list-measurements.js';
+import { executeApiGetMeasurement, ApiGetMeasurementInputSchema } from './api-get-measurement.js';
+import { executeTargetCompare, TargetCompareInputSchema } from './target-compare.js';
 
 /**
  * Register all tools with the MCP server
@@ -52,6 +58,36 @@ export function registerTools(server: Server): void {
           name: 'rew.interpret_with_glm_context',
           description: 'Interpret measurement analysis results considering Genelec GLM\'s capabilities and limitations. Explains what GLM can address, what requires physical solutions, and provides calibration-aware recommendations.',
           inputSchema: zodToJsonSchema(GLMInterpretInputSchema)
+        },
+        {
+          name: 'rew.average_measurements',
+          description: 'Create a spatial average from multiple measurement positions. Implements REW\'s averaging methods: RMS (incoherent, recommended for spatial averaging), Vector (coherent, requires phase data), or hybrid methods. Useful for multi-position room calibration.',
+          inputSchema: zodToJsonSchema(AveragingInputSchema)
+        },
+        {
+          name: 'rew.analyze_sub_integration',
+          description: 'Analyze subwoofer integration with main speakers. Evaluates phase alignment, timing, and polarity at the crossover region. Provides delay and polarity recommendations for optimal summation.',
+          inputSchema: zodToJsonSchema(SubIntegrationInputSchema)
+        },
+        {
+          name: 'rew.api_connect',
+          description: 'Connect to a running REW instance\'s REST API. REW must be launched with -api flag or have API enabled in preferences. Default port is 4735.',
+          inputSchema: zodToJsonSchema(ApiConnectInputSchema)
+        },
+        {
+          name: 'rew.api_list_measurements',
+          description: 'List all measurements available in the connected REW instance. Requires prior connection via rew.api_connect.',
+          inputSchema: zodToJsonSchema(ApiListMeasurementsInputSchema)
+        },
+        {
+          name: 'rew.api_get_measurement',
+          description: 'Fetch a measurement directly from REW via API. Use UUID (not index) to identify measurements, as indices shift when measurements are added/removed.',
+          inputSchema: zodToJsonSchema(ApiGetMeasurementInputSchema)
+        },
+        {
+          name: 'rew.compare_to_target',
+          description: 'Compare a measurement against a target response curve. Supports flat, REW room curve (LF rise + HF fall), Harman curve, or custom curves. Provides deviation statistics and recommendations.',
+          inputSchema: zodToJsonSchema(TargetCompareInputSchema)
         }
       ]
     };
@@ -87,6 +123,30 @@ export function registerTools(server: Server): void {
           
         case 'rew.interpret_with_glm_context':
           result = await executeGLMInterpret(args as any);
+          break;
+          
+        case 'rew.average_measurements':
+          result = await executeAveraging(args as any);
+          break;
+          
+        case 'rew.analyze_sub_integration':
+          result = await executeSubIntegration(args as any);
+          break;
+          
+        case 'rew.api_connect':
+          result = await executeApiConnect(args as any);
+          break;
+          
+        case 'rew.api_list_measurements':
+          result = await executeApiListMeasurements(args as any);
+          break;
+          
+        case 'rew.api_get_measurement':
+          result = await executeApiGetMeasurement(args as any);
+          break;
+          
+        case 'rew.compare_to_target':
+          result = await executeTargetCompare(args as any);
           break;
           
         default:
