@@ -19,6 +19,7 @@ import { executeSubIntegration, SubIntegrationInputSchema } from './sub-integrat
 import { executeApiConnect, ApiConnectInputSchema } from './api-connect.js';
 import { executeApiListMeasurements, ApiListMeasurementsInputSchema } from './api-list-measurements.js';
 import { executeApiGetMeasurement, ApiGetMeasurementInputSchema } from './api-get-measurement.js';
+import { executeTargetCompare, TargetCompareInputSchema } from './target-compare.js';
 
 /**
  * Register all tools with the MCP server
@@ -82,6 +83,11 @@ export function registerTools(server: Server): void {
           name: 'rew.api_get_measurement',
           description: 'Fetch a measurement directly from REW via API. Use UUID (not index) to identify measurements, as indices shift when measurements are added/removed.',
           inputSchema: zodToJsonSchema(ApiGetMeasurementInputSchema)
+        },
+        {
+          name: 'rew.compare_to_target',
+          description: 'Compare a measurement against a target response curve. Supports flat, REW room curve (LF rise + HF fall), Harman curve, or custom curves. Provides deviation statistics and recommendations.',
+          inputSchema: zodToJsonSchema(TargetCompareInputSchema)
         }
       ]
     };
@@ -137,6 +143,10 @@ export function registerTools(server: Server): void {
           
         case 'rew.api_get_measurement':
           result = await executeApiGetMeasurement(args as any);
+          break;
+          
+        case 'rew.compare_to_target':
+          result = await executeTargetCompare(args as any);
           break;
           
         default:
