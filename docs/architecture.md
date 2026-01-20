@@ -130,11 +130,18 @@ type SpeakerID = 'L' | 'R' | 'C' | 'Sub' | 'Combined' | string;
 **Purpose**: Expose analysis capabilities as MCP tools.
 
 **Responsibilities**:
-- Define JSON Schema for each tool
-- Validate inputs
+- Define JSON Schema for each tool (input and output schemas)
+- Validate inputs against schemas
 - Route to appropriate analysis functions
-- Format structured responses
+- Format structured responses per MCP specification
 - Include confidence and uncertainty markers
+- Return `isError` flag for error responses
+
+**MCP Compliance**:
+- Protocol Version: 2025-06-18
+- See [MCP Server Configuration](mcp-server-config.md) for full server specification
+- See [Resources](resources.md) for data access without computation
+- See [Prompts](prompts.md) for workflow templates
 
 ## Data Flow Examples
 
@@ -183,6 +190,46 @@ The MCP server should be stateless between requests where possible. The measurem
 - Persistent (file-based, for multi-session workflows)
 
 If persistent storage is used, ensure thread-safe read/write operations.
+
+## MCP Response Format
+
+All tool responses must follow the MCP specification format:
+
+### Success Response
+
+```json
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"status\": \"success\", \"measurement_id\": \"meas_001\", ...}"
+    }
+  ],
+  "isError": false
+}
+```
+
+### Error Response
+
+```json
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"status\": \"error\", \"error_type\": \"parse_error\", \"message\": \"...\", \"suggestion\": \"...\"}"
+    }
+  ],
+  "isError": true
+}
+```
+
+### Response Content Rules
+
+1. **Always JSON**: Tool output is always serialized JSON in the `text` field
+2. **isError flag**: Set `true` for any error condition, `false` for success
+3. **Structured errors**: Include `error_type`, `message`, and `suggestion` fields
+4. **Confidence markers**: All analysis results include `analysis_confidence`
+5. **Explicit units**: All numeric values have units in key names (e.g., `frequency_hz`, `level_db`)
 
 ## Performance Considerations
 

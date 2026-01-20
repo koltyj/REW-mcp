@@ -4,9 +4,13 @@ Compares two or more measurements to identify improvements, regressions, and unc
 
 ## MCP Tool Definition
 
+> **Reference**: MCP Tools Specification (Protocol Version 2025-06-18)
+> https://modelcontextprotocol.io/specification/2025-06-18/server/tools
+
 ```json
 {
   "name": "rew.compare_measurements",
+  "title": "Compare Measurements",
   "description": "Compare two or more REW measurements to determine what improved, worsened, or stayed the same. Supports pre/post GLM comparison, placement comparisons, and L/R symmetry analysis.",
   "inputSchema": {
     "type": "object",
@@ -15,7 +19,8 @@ Compares two or more measurements to identify improvements, regressions, and unc
         "type": "array",
         "items": { "type": "string" },
         "minItems": 2,
-        "description": "List of measurement IDs to compare (minimum 2)"
+        "maxItems": 10,
+        "description": "List of measurement IDs to compare (minimum 2, maximum 10)"
       },
       "comparison_type": {
         "type": "string",
@@ -28,13 +33,102 @@ Compares two or more measurements to identify improvements, regressions, and unc
       },
       "frequency_range_hz": {
         "type": "array",
-        "items": { "type": "number" },
+        "items": { "type": "number", "minimum": 1, "maximum": 30000 },
         "minItems": 2,
         "maxItems": 2,
-        "description": "Optional: Limit analysis to frequency range [min, max]"
+        "description": "Optional: Limit analysis to frequency range [min, max] in Hz"
       }
     },
     "required": ["measurement_ids", "comparison_type"]
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "comparison_id": {
+        "type": "string",
+        "description": "Unique identifier for this comparison result"
+      },
+      "comparison_type": {
+        "type": "string",
+        "enum": ["before_after", "placement_comparison", "lr_symmetry", "with_without_sub"]
+      },
+      "measurements_compared": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "role": { "type": "string" },
+            "condition": { "type": "string" }
+          },
+          "required": ["id", "role"]
+        }
+      },
+      "frequency_band_analysis": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "band_name": { "type": "string" },
+            "frequency_range_hz": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+            "reference_avg_db": { "type": "number" },
+            "reference_variance_db": { "type": "number" },
+            "comparison_avg_db": { "type": "number" },
+            "comparison_variance_db": { "type": "number" },
+            "level_delta_db": { "type": "number" },
+            "variance_delta_db": { "type": "number" },
+            "assessment": { "type": "string", "enum": ["improved", "slightly_improved", "unchanged", "slightly_regressed", "regressed"] },
+            "assessment_reason": { "type": "string" }
+          },
+          "required": ["band_name", "frequency_range_hz", "assessment"]
+        }
+      },
+      "peak_analysis": {
+        "type": "object",
+        "properties": {
+          "peaks_in_reference": { "type": "array", "items": { "type": "object" } },
+          "peaks_addressed": { "type": "array", "items": { "type": "object" } },
+          "peaks_unchanged": { "type": "array", "items": { "type": "object" } },
+          "new_peaks": { "type": "array", "items": { "type": "object" } }
+        }
+      },
+      "null_analysis": {
+        "type": "object",
+        "properties": {
+          "nulls_in_reference": { "type": "array", "items": { "type": "object" } },
+          "nulls_addressed": { "type": "array", "items": { "type": "object" } },
+          "nulls_unchanged": { "type": "array", "items": { "type": "object" } },
+          "new_nulls": { "type": "array", "items": { "type": "object" } }
+        }
+      },
+      "overall_assessment": {
+        "type": "object",
+        "properties": {
+          "verdict": { "type": "string", "enum": ["improved", "slightly_improved", "mixed", "slightly_regressed", "regressed"] },
+          "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+          "improvement_score": { "type": "number", "minimum": 0, "maximum": 1 },
+          "summary": { "type": "object" }
+        },
+        "required": ["verdict", "confidence"]
+      },
+      "analysis_confidence": {
+        "type": "string",
+        "enum": ["high", "medium", "low", "uncertain"]
+      },
+      "analysis_limitations": {
+        "type": "array",
+        "items": { "type": "string" }
+      },
+      "error": {
+        "type": "string",
+        "description": "Error type if comparison failed"
+      },
+      "message": {
+        "type": "string",
+        "description": "Error message if comparison failed"
+      }
+    },
+    "required": ["comparison_type", "analysis_confidence"]
   }
 }
 ```

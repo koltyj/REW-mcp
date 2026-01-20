@@ -4,30 +4,160 @@ Analyzes waterfall/spectrogram data to identify frequencies with problematic dec
 
 ## MCP Tool Definition
 
+> **Reference**: MCP Tools Specification (Protocol Version 2025-06-18)
+> https://modelcontextprotocol.io/specification/2025-06-18/server/tools
+
 ```json
 {
   "name": "rew.analyze_decay",
+  "title": "Analyze Decay",
   "description": "Analyze decay characteristics from waterfall or spectrogram data to identify frequencies with excessive ringing or resonance.",
   "inputSchema": {
     "type": "object",
     "properties": {
       "measurement_id": {
         "type": "string",
+        "minLength": 1,
         "description": "ID of measurement with waterfall/spectrogram data"
       },
       "frequency_range_hz": {
         "type": "array",
-        "items": { "type": "number" },
+        "items": { "type": "number", "minimum": 1, "maximum": 2000 },
+        "minItems": 2,
+        "maxItems": 2,
         "default": [20, 500],
         "description": "Frequency range to analyze [min, max]"
       },
       "decay_threshold_seconds": {
         "type": "number",
         "default": 0.4,
+        "minimum": 0.1,
+        "maximum": 2.0,
         "description": "T60 threshold above which decay is flagged as problematic"
       }
     },
     "required": ["measurement_id"]
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "measurement_id": { "type": "string" },
+      "analysis_type": { "type": "string", "const": "decay_analysis" },
+      "analysis_confidence": { "type": "string", "enum": ["high", "medium", "low", "uncertain"] },
+      "frequency_range_analyzed_hz": {
+        "type": "array",
+        "items": { "type": "number" },
+        "minItems": 2,
+        "maxItems": 2
+      },
+      "decay_data": {
+        "type": "object",
+        "properties": {
+          "source": { "type": "string", "enum": ["waterfall", "spectrogram", "computed"] },
+          "mode": { "type": "string" },
+          "time_range_ms": { "type": "number" },
+          "frequency_resolution_ppo": { "type": "number" }
+        }
+      },
+      "problematic_frequencies": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "frequency_hz": { "type": "number" },
+            "t60_seconds": { "type": "number" },
+            "t30_seconds": { "type": "number" },
+            "severity": { "type": "string", "enum": ["significant", "moderate", "minor"] },
+            "threshold_seconds": { "type": "number" },
+            "excess_seconds": { "type": "number" },
+            "decay_character": { "type": "string", "enum": ["modal_ringing", "severe_resonance", "extended_decay", "normal_decay"] },
+            "correlated_peak": {
+              "type": "object",
+              "properties": {
+                "found": { "type": "boolean" },
+                "peak_deviation_db": { "type": "number" },
+                "correlation_confidence": { "type": "string", "enum": ["high", "medium", "low"] }
+              }
+            },
+            "likely_cause": { "type": "string" },
+            "glm_impact": { "type": "string" },
+            "suggested_mitigation": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": { "type": "string" },
+                  "action": { "type": "string" },
+                  "expected_improvement": { "type": "string" },
+                  "confidence": { "type": "string", "enum": ["high", "medium", "low"] }
+                }
+              }
+            }
+          },
+          "required": ["frequency_hz", "t60_seconds", "severity"]
+        }
+      },
+      "acceptable_frequencies": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "frequency_hz": { "type": "number" },
+            "t60_seconds": { "type": "number" },
+            "assessment": { "type": "string" }
+          }
+        }
+      },
+      "frequency_band_summary": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "band": { "type": "string" },
+            "range_hz": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+            "avg_t60_seconds": { "type": "number" },
+            "assessment": { "type": "string" },
+            "target_t60_seconds": { "type": "number" }
+          }
+        }
+      },
+      "overall_assessment": {
+        "type": "object",
+        "properties": {
+          "quality": { "type": "string", "enum": ["good", "acceptable", "needs_improvement", "poor"] },
+          "primary_issue_hz": { "type": "number" },
+          "dominant_problem": { "type": "string" },
+          "average_bass_t60_seconds": { "type": "number" }
+        },
+        "required": ["quality"]
+      },
+      "recommendations": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "priority": { "type": "integer", "minimum": 1 },
+            "target_frequency_hz": { "type": "number" },
+            "action": { "type": "string" },
+            "type": { "type": "string" },
+            "expected_improvement": { "type": "string" },
+            "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+            "note": { "type": "string" }
+          }
+        }
+      },
+      "glm_note": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string" },
+          "implication": { "type": "string" },
+          "affected_frequencies": { "type": "array", "items": { "type": "number" } }
+        }
+      },
+      "error": { "type": "string" },
+      "message": { "type": "string" }
+    },
+    "required": ["measurement_id", "analysis_type", "analysis_confidence"]
   }
 }
 ```

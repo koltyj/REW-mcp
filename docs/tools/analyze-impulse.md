@@ -4,15 +4,20 @@ Analyzes impulse response and Energy Time Curve (ETC) data to detect early refle
 
 ## MCP Tool Definition
 
+> **Reference**: MCP Tools Specification (Protocol Version 2025-06-18)
+> https://modelcontextprotocol.io/specification/2025-06-18/server/tools
+
 ```json
 {
   "name": "rew.analyze_impulse",
+  "title": "Analyze Impulse Response",
   "description": "Analyze impulse response data to detect early reflections, estimate reflection paths, and assess their impact on sound quality.",
   "inputSchema": {
     "type": "object",
     "properties": {
       "measurement_id": {
         "type": "string",
+        "minLength": 1,
         "description": "ID of measurement with impulse response data"
       },
       "analysis_options": {
@@ -21,17 +26,145 @@ Analyzes impulse response and Energy Time Curve (ETC) data to detect early refle
           "max_reflection_time_ms": {
             "type": "number",
             "default": 50,
+            "minimum": 10,
+            "maximum": 200,
             "description": "Maximum time window for early reflection analysis"
           },
           "reflection_threshold_db": {
             "type": "number",
             "default": -15,
+            "minimum": -40,
+            "maximum": -3,
             "description": "Minimum level relative to direct sound to flag as significant reflection"
           }
         }
       }
     },
     "required": ["measurement_id"]
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "measurement_id": { "type": "string" },
+      "analysis_type": { "type": "string", "const": "impulse_response_analysis" },
+      "analysis_confidence": { "type": "string", "enum": ["high", "medium", "low", "uncertain"] },
+      "direct_sound": {
+        "type": "object",
+        "properties": {
+          "arrival_time_ms": { "type": "number" },
+          "level_db": { "type": "number" },
+          "peak_sample_index": { "type": "integer" }
+        },
+        "required": ["arrival_time_ms", "level_db"]
+      },
+      "early_reflections": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "delay_ms": { "type": "number" },
+            "level_relative_db": { "type": "number" },
+            "level_absolute_db": { "type": "number" },
+            "estimated_path_length_m": { "type": "number" },
+            "likely_source": {
+              "type": "object",
+              "properties": {
+                "surface": { "type": "string" },
+                "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+                "reasoning": { "type": "string" }
+              }
+            },
+            "severity": { "type": "string", "enum": ["severe", "significant", "moderate", "minor", "negligible"] },
+            "comb_filter_analysis": {
+              "type": "object",
+              "properties": {
+                "affected_frequencies_hz": { "type": "array", "items": { "type": "number" } },
+                "first_null_hz": { "type": "number" },
+                "pattern": { "type": "string" }
+              }
+            },
+            "suggested_treatment": {
+              "type": "object",
+              "properties": {
+                "action": { "type": "string" },
+                "expected_reduction_db": { "type": "string" },
+                "confidence": { "type": "string", "enum": ["high", "medium", "low"] }
+              }
+            }
+          },
+          "required": ["delay_ms", "level_relative_db", "severity"]
+        }
+      },
+      "initial_time_delay_gap": {
+        "type": "object",
+        "properties": {
+          "itd_ms": { "type": "number" },
+          "assessment": { "type": "string", "enum": ["excellent", "good", "acceptable", "short", "poor"] },
+          "note": { "type": "string" },
+          "ideal_minimum_ms": { "type": "number" },
+          "impact": { "type": "string" }
+        },
+        "required": ["itd_ms", "assessment"]
+      },
+      "reflection_pattern_analysis": {
+        "type": "object",
+        "properties": {
+          "total_early_reflections": { "type": "integer" },
+          "significant_reflections": { "type": "integer" },
+          "average_level_db": { "type": "number" },
+          "reflection_density": { "type": "string", "enum": ["sparse", "moderate", "dense"] },
+          "symmetry_assessment": { "type": ["string", "null"] }
+        }
+      },
+      "comb_filtering_risk": {
+        "type": "object",
+        "properties": {
+          "level": { "type": "string", "enum": ["severe", "moderate", "low", "minimal"] },
+          "primary_concern": {
+            "type": "object",
+            "properties": {
+              "source": { "type": "string" },
+              "first_null_frequency_hz": { "type": "number" },
+              "affected_range": { "type": "string" }
+            }
+          },
+          "expected_audible_effect": { "type": "string" }
+        },
+        "required": ["level"]
+      },
+      "clarity_metrics": {
+        "type": "object",
+        "properties": {
+          "c50_db": { "type": "number" },
+          "c80_db": { "type": "number" },
+          "d50_percent": { "type": "number" },
+          "assessment": { "type": "string" }
+        }
+      },
+      "summary": {
+        "type": "object",
+        "properties": {
+          "primary_issues": { "type": "array", "items": { "type": "string" } },
+          "reflection_quality": { "type": "string", "enum": ["excellent", "good", "acceptable", "needs_improvement", "poor"] },
+          "recommended_priority": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "priority": { "type": "integer", "minimum": 1 },
+                "issue": { "type": "string" },
+                "action": { "type": "string" },
+                "impact": { "type": "string" }
+              }
+            }
+          }
+        },
+        "required": ["reflection_quality"]
+      },
+      "error": { "type": "string" },
+      "message": { "type": "string" }
+    },
+    "required": ["measurement_id", "analysis_type", "analysis_confidence"]
   }
 }
 ```

@@ -4,9 +4,13 @@ Interprets analysis results through the lens of Genelec GLM behavior and capabil
 
 ## MCP Tool Definition
 
+> **Reference**: MCP Tools Specification (Protocol Version 2025-06-18)
+> https://modelcontextprotocol.io/specification/2025-06-18/server/tools
+
 ```json
 {
   "name": "rew.interpret_with_glm_context",
+  "title": "Interpret with GLM Context",
   "description": "Interpret measurement analysis results considering Genelec GLM's capabilities and limitations. Explains what GLM can address, what requires physical solutions, and provides calibration-aware recommendations.",
   "inputSchema": {
     "type": "object",
@@ -29,7 +33,156 @@ Interprets analysis results through the lens of Genelec GLM behavior and capabil
         "default": "unknown",
         "description": "GLM software version if known"
       }
-    }
+    },
+    "oneOf": [
+      { "required": ["comparison_id"] },
+      { "required": ["measurement_id"] },
+      { "required": ["analysis_results"] }
+    ]
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "interpretation_type": {
+        "type": "string",
+        "enum": ["pre_post_glm_comparison", "single_measurement", "analysis_interpretation"]
+      },
+      "glm_version": { "type": "string", "enum": ["glm3", "glm4", "unknown"] },
+      "analysis_confidence": { "type": "string", "enum": ["high", "medium", "low", "uncertain"] },
+      "glm_effectiveness_assessment": {
+        "type": "object",
+        "properties": {
+          "overall": { "type": "string", "enum": ["excellent", "good", "adequate", "limited", "poor"] },
+          "score": { "type": "number", "minimum": 0, "maximum": 1 },
+          "confidence": { "type": "string", "enum": ["high", "medium", "low"] }
+        }
+      },
+      "corrections_successfully_applied": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "issue": { "type": "string" },
+            "pre_severity": { "type": "string" },
+            "pre_deviation_db": { "type": "number" },
+            "post_severity": { "type": "string" },
+            "post_deviation_db": { "type": "number" },
+            "glm_action": { "type": "string" },
+            "effectiveness": { "type": "string", "enum": ["highly_effective", "effective", "partially_effective", "minimal_effect"] },
+            "explanation": { "type": "string" }
+          },
+          "required": ["issue", "glm_action", "effectiveness"]
+        }
+      },
+      "issues_beyond_glm_scope": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "issue": { "type": "string" },
+            "severity": { "type": "string" },
+            "measured_depth_db": { "type": "number" },
+            "why_glm_cannot_fix": {
+              "type": "object",
+              "properties": {
+                "reason": { "type": "string" },
+                "explanation": { "type": "string" },
+                "reference": { "type": "string" }
+              },
+              "required": ["reason", "explanation"]
+            },
+            "physical_cause_assessment": {
+              "type": "object",
+              "properties": {
+                "likely_cause": { "type": "string" },
+                "estimated_path_difference_m": { "type": "number" },
+                "confidence": { "type": "string", "enum": ["high", "medium", "low"] }
+              }
+            },
+            "recommended_solutions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": { "type": "string" },
+                  "action": { "type": "string" },
+                  "expected_improvement": { "type": "string" },
+                  "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+                  "reversible": { "type": "boolean" },
+                  "cost": { "type": "string" }
+                },
+                "required": ["type", "action"]
+              }
+            }
+          },
+          "required": ["issue", "severity", "why_glm_cannot_fix"]
+        }
+      },
+      "residual_issues_assessment": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "issue": { "type": "string" },
+            "residual_deviation_db": { "type": "number" },
+            "assessment": { "type": "string", "enum": ["acceptable", "borderline", "concerning"] },
+            "within_target": { "type": "boolean" },
+            "explanation": { "type": "string" }
+          }
+        }
+      },
+      "glm_behavior_notes": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "observation": { "type": "string" },
+            "explanation": { "type": "string" },
+            "is_expected": { "type": "boolean" }
+          },
+          "required": ["observation", "explanation", "is_expected"]
+        }
+      },
+      "decay_interpretation": {
+        "type": "object",
+        "properties": {
+          "applicable": { "type": "boolean" },
+          "note": { "type": "string" },
+          "implication": { "type": "string" },
+          "recommendation": { "type": "string" }
+        }
+      },
+      "reflection_interpretation": {
+        "type": "object",
+        "properties": {
+          "applicable": { "type": "boolean" },
+          "note": { "type": "string" },
+          "explanation": { "type": "string" },
+          "recommendation": { "type": "string" }
+        }
+      },
+      "overall_verdict": {
+        "type": "object",
+        "properties": {
+          "glm_calibration_quality": { "type": "string", "enum": ["excellent", "good", "adequate", "limited", "poor"] },
+          "remaining_issues_summary": { "type": "array", "items": { "type": "string" } },
+          "system_readiness": { "type": "string", "enum": ["ready", "ready_with_caveats", "needs_attention", "not_ready"] },
+          "primary_recommendation": { "type": "string" },
+          "acceptance_note": { "type": "string" }
+        },
+        "required": ["glm_calibration_quality", "system_readiness"]
+      },
+      "comparison_with_expectations": {
+        "type": "object",
+        "properties": {
+          "assessment": { "type": "string", "enum": ["exceeds_expectations", "meets_expectations", "below_expectations"] },
+          "explanation": { "type": "string" }
+        }
+      },
+      "error": { "type": "string" },
+      "message": { "type": "string" }
+    },
+    "required": ["interpretation_type", "analysis_confidence"]
   }
 }
 ```

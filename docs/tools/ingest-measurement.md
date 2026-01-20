@@ -4,17 +4,20 @@ Parses and stores REW measurement data for subsequent analysis.
 
 ## MCP Tool Definition
 
-> **Reference**: MCP Tools Specification at https://modelcontextprotocol.io/specification/2025-06-18/server/tools
+> **Reference**: MCP Tools Specification (Protocol Version 2025-06-18)
+> https://modelcontextprotocol.io/specification/2025-06-18/server/tools
 
 ```json
 {
   "name": "rew.ingest_measurement",
+  "title": "Ingest Measurement",
   "description": "Parse and store a REW measurement export for analysis. Accepts frequency response or impulse response data in REW text export format.",
   "inputSchema": {
     "type": "object",
     "properties": {
       "file_contents": {
         "type": "string",
+        "minLength": 1,
         "description": "The complete contents of a REW export file (text format)"
       },
       "metadata": {
@@ -27,6 +30,7 @@ Parses and stores REW measurement data for subsequent analysis.
           },
           "condition": {
             "type": "string",
+            "pattern": "^[a-zA-Z0-9_]+$",
             "description": "Measurement condition label (e.g., 'pre_glm', 'post_glm', 'placement_A')"
           },
           "mic_position_id": {
@@ -35,6 +39,7 @@ Parses and stores REW measurement data for subsequent analysis.
           },
           "notes": {
             "type": "string",
+            "maxLength": 1000,
             "description": "Free-form notes about this measurement"
           }
         },
@@ -42,6 +47,109 @@ Parses and stores REW measurement data for subsequent analysis.
       }
     },
     "required": ["file_contents", "metadata"]
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "status": {
+        "type": "string",
+        "enum": ["success", "error"],
+        "description": "Operation result status"
+      },
+      "measurement_id": {
+        "type": "string",
+        "description": "Unique identifier for the stored measurement"
+      },
+      "summary": {
+        "type": "object",
+        "properties": {
+          "data_type": {
+            "type": "string",
+            "enum": ["frequency_response", "impulse_response", "combined"],
+            "description": "Type of data in the measurement"
+          },
+          "frequency_range_hz": {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "Frequency range as [min, max]"
+          },
+          "data_points": {
+            "type": "integer",
+            "description": "Number of data points"
+          },
+          "points_per_octave": {
+            "type": "number",
+            "description": "Frequency resolution"
+          },
+          "has_phase_data": {
+            "type": "boolean",
+            "description": "Whether phase data is included"
+          },
+          "has_impulse_data": {
+            "type": "boolean",
+            "description": "Whether impulse response data is included"
+          },
+          "overall_level_db": {
+            "type": "number",
+            "description": "Average SPL level"
+          }
+        },
+        "required": ["data_type", "frequency_range_hz", "data_points"]
+      },
+      "quick_stats": {
+        "type": "object",
+        "properties": {
+          "bass_avg_db": { "type": "number" },
+          "midrange_avg_db": { "type": "number" },
+          "treble_avg_db": { "type": "number" },
+          "variance_20_200hz_db": { "type": "number" },
+          "variance_200_2000hz_db": { "type": "number" },
+          "variance_2000_20000hz_db": { "type": "number" }
+        }
+      },
+      "data_quality": {
+        "type": "object",
+        "properties": {
+          "confidence": {
+            "type": "string",
+            "enum": ["high", "medium", "low"],
+            "description": "Data quality confidence level"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string" },
+                "message": { "type": "string" }
+              }
+            },
+            "description": "Data quality warnings"
+          }
+        },
+        "required": ["confidence", "warnings"]
+      },
+      "parsed_file_metadata": {
+        "type": "object",
+        "properties": {
+          "rew_version": { "type": "string" },
+          "measurement_name": { "type": "string" },
+          "export_date": { "type": "string", "format": "date-time" },
+          "source_description": { "type": "string" }
+        }
+      },
+      "error_type": {
+        "type": "string",
+        "description": "Error type (only present if status is 'error')"
+      },
+      "message": {
+        "type": "string",
+        "description": "Error message (only present if status is 'error')"
+      }
+    },
+    "required": ["status"]
   }
 }
 ```

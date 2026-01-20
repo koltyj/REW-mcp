@@ -28,6 +28,8 @@ The MCP server **does not control REW in real time**. It:
 
 ## Documentation
 
+### Core Documentation
+
 | Document | Purpose |
 |----------|---------|
 | [Architecture](docs/architecture.md) | System design and data flow |
@@ -37,6 +39,14 @@ The MCP server **does not control REW in real time**. It:
 | [Guardrails](docs/guardrails.md) | Safety constraints and quality rules |
 | [Examples](docs/examples.md) | Usage patterns and workflows |
 | [References](docs/references.md) | External documentation sources |
+
+### MCP Protocol Documentation
+
+| Document | Purpose |
+|----------|---------|
+| [MCP Server Config](docs/mcp-server-config.md) | Server capabilities and initialization |
+| [Resources](docs/resources.md) | MCP resource definitions for data access |
+| [Prompts](docs/prompts.md) | MCP prompt templates for workflows |
 
 ### Tool Specifications
 
@@ -90,11 +100,26 @@ The system must:
 - Prefer "likely" over "certain"
 - Defer final judgment to humans
 
+## MCP Protocol Compliance
+
+This server implements **MCP Protocol Version 2025-06-18**.
+
+| Feature | Status |
+|---------|--------|
+| Tools (with output schemas) | ✅ Supported |
+| Resources | ✅ Supported |
+| Prompts | ✅ Supported |
+| Logging | ✅ Supported |
+| Transport: stdio | ✅ Primary |
+| Transport: HTTP+SSE | ⬜ Optional |
+
 ## External References
 
+- **MCP Specification**: https://modelcontextprotocol.io/specification/2025-06-18
+- **MCP TypeScript SDK**: https://github.com/modelcontextprotocol/typescript-sdk
+- **MCP Python SDK**: https://github.com/modelcontextprotocol/python-sdk
 - **REW API Documentation**: https://www.roomeqwizard.com/help/help_en-GB/html/api.html
 - **REW File Export Documentation**: https://www.roomeqwizard.com/help/help_en-GB/html/file.html
-- **MCP TypeScript SDK**: https://github.com/modelcontextprotocol/typescript-sdk
 - **Genelec GLM**: https://www.genelec.com/glm
 
 ## License

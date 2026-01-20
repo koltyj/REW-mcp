@@ -4,23 +4,28 @@ Detects peaks, nulls, and correlates them with theoretical room modes.
 
 ## MCP Tool Definition
 
+> **Reference**: MCP Tools Specification (Protocol Version 2025-06-18)
+> https://modelcontextprotocol.io/specification/2025-06-18/server/tools
+
 ```json
 {
   "name": "rew.analyze_room_modes",
+  "title": "Analyze Room Modes",
   "description": "Analyze a measurement for room modes, peaks, and nulls. Optionally correlates detected issues with theoretical room modes based on room dimensions.",
   "inputSchema": {
     "type": "object",
     "properties": {
       "measurement_id": {
         "type": "string",
+        "minLength": 1,
         "description": "ID of the measurement to analyze"
       },
       "room_dimensions_m": {
         "type": "object",
         "properties": {
-          "length": { "type": "number", "description": "Room length in meters" },
-          "width": { "type": "number", "description": "Room width in meters" },
-          "height": { "type": "number", "description": "Room height in meters" }
+          "length": { "type": "number", "minimum": 1, "maximum": 100, "description": "Room length in meters" },
+          "width": { "type": "number", "minimum": 1, "maximum": 100, "description": "Room width in meters" },
+          "height": { "type": "number", "minimum": 1, "maximum": 20, "description": "Room height in meters" }
         },
         "description": "Optional: Room dimensions for theoretical mode calculation"
       },
@@ -30,23 +35,127 @@ Detects peaks, nulls, and correlates them with theoretical room modes.
           "peak_threshold_db": {
             "type": "number",
             "default": 5.0,
+            "minimum": 1.0,
+            "maximum": 20.0,
             "description": "Minimum dB above local average to flag as peak"
           },
           "null_threshold_db": {
             "type": "number",
             "default": -6.0,
+            "minimum": -30.0,
+            "maximum": -1.0,
             "description": "Minimum dB below local average to flag as null"
           },
           "frequency_range_hz": {
             "type": "array",
-            "items": { "type": "number" },
+            "items": { "type": "number", "minimum": 1, "maximum": 1000 },
+            "minItems": 2,
+            "maxItems": 2,
             "default": [20, 300],
-            "description": "Frequency range for mode analysis"
+            "description": "Frequency range for mode analysis [min, max]"
           }
         }
       }
     },
     "required": ["measurement_id"]
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "measurement_id": { "type": "string" },
+      "analysis_type": { "type": "string", "const": "room_mode_analysis" },
+      "analysis_confidence": { "type": "string", "enum": ["high", "medium", "low", "uncertain"] },
+      "detected_peaks": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "frequency_hz": { "type": "number" },
+            "level_db": { "type": "number" },
+            "deviation_db": { "type": "number" },
+            "q_factor": { "type": "number" },
+            "classification": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string" },
+                "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+                "reasoning": { "type": "string" }
+              }
+            },
+            "mode_correlation": {
+              "type": "object",
+              "properties": {
+                "theoretical_mode_hz": { "type": "number" },
+                "mode_type": { "type": "string", "enum": ["axial", "tangential", "oblique"] },
+                "dimension": { "type": "string" },
+                "order": { "type": "integer" },
+                "match_error_percent": { "type": "number" }
+              }
+            },
+            "severity": { "type": "string", "enum": ["significant", "moderate", "minor", "negligible"] },
+            "glm_addressable": { "type": "boolean" }
+          },
+          "required": ["frequency_hz", "deviation_db", "severity"]
+        }
+      },
+      "detected_nulls": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "frequency_hz": { "type": "number" },
+            "level_db": { "type": "number" },
+            "depth_db": { "type": "number" },
+            "q_factor": { "type": "number" },
+            "classification": { "type": "object" },
+            "severity": { "type": "string", "enum": ["significant", "moderate", "minor", "negligible"] },
+            "glm_addressable": { "type": "boolean" },
+            "suggested_resolution": { "type": "string" }
+          },
+          "required": ["frequency_hz", "depth_db", "severity"]
+        }
+      },
+      "theoretical_room_modes": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "frequency_hz": { "type": "number" },
+            "mode_type": { "type": "string", "enum": ["axial", "tangential", "oblique"] },
+            "dimension": { "type": "string" },
+            "order": { "type": "integer" },
+            "detected_in_measurement": { "type": "boolean" },
+            "matched_peak_hz": { "type": "number" }
+          },
+          "required": ["frequency_hz", "mode_type"]
+        }
+      },
+      "mode_distribution_assessment": {
+        "type": "object",
+        "properties": {
+          "schroeder_frequency_hz": { "type": "number" },
+          "mode_spacing_quality": { "type": "string", "enum": ["good", "fair", "poor"] },
+          "problematic_clusters": { "type": "array", "items": { "type": "object" } },
+          "mode_gaps": { "type": "array", "items": { "type": "object" } }
+        }
+      },
+      "summary": {
+        "type": "object",
+        "properties": {
+          "total_peaks_detected": { "type": "integer" },
+          "total_nulls_detected": { "type": "integer" },
+          "modes_correlated": { "type": "integer" },
+          "primary_issues": { "type": "array", "items": { "type": "string" } },
+          "glm_addressable_issues": { "type": "integer" },
+          "placement_sensitive_issues": { "type": "integer" },
+          "recommended_priority": { "type": "array", "items": { "type": "object" } }
+        },
+        "required": ["total_peaks_detected", "total_nulls_detected"]
+      },
+      "error": { "type": "string" },
+      "message": { "type": "string" }
+    },
+    "required": ["measurement_id", "analysis_type", "analysis_confidence"]
   }
 }
 ```
