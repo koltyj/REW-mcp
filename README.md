@@ -2,6 +2,16 @@
 
 An MCP (Model Context Protocol) server that exposes Room EQ Wizard (REW) measurement data and analysis tools to LLMs, enabling AI-assisted speaker placement decisions and validation of Genelec GLM calibration.
 
+## Features
+
+- 📊 **Parse REW exports** - Frequency response and impulse response text files
+- 🔍 **Detect room modes** - Identify peaks, nulls, and correlate with theoretical modes
+- 📉 **Analyze decay times** - Find excessive ringing and resonances
+- 🔊 **Reflection analysis** - Detect early reflections and comb filtering
+- ⚖️ **Compare measurements** - Pre/post GLM, placement optimization, L/R symmetry
+- 🎯 **GLM-aware interpretation** - Understand what Genelec GLM can and cannot fix
+- 🤖 **AI-assisted decision support** - Get structured recommendations with confidence levels
+
 ## What This Is
 
 The MCP server **does not control REW in real time**. It:
@@ -59,6 +69,132 @@ The MCP server **does not control REW in real time**. It:
 | [rew.analyze_impulse](docs/tools/analyze-impulse.md) | Impulse response and ETC analysis |
 | [rew.interpret_with_glm_context](docs/tools/interpret-with-glm-context.md) | GLM-aware result interpretation |
 
+## Installation
+
+### Running with npx (Recommended)
+
+No installation required - run directly:
+
+```bash
+npx -y rew-mcp
+```
+
+### Manual Installation
+
+Install globally via npm:
+
+```bash
+npm install -g rew-mcp
+```
+
+Then run:
+
+```bash
+rew-mcp
+```
+
+### Usage with Claude Desktop
+
+Add this to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "rew-mcp": {
+      "command": "npx",
+      "args": ["-y", "rew-mcp"]
+    }
+  }
+}
+```
+
+### Usage with Cursor
+
+**For Cursor v0.48.6+**
+
+1. Open Cursor Settings
+2. Go to Features > MCP Servers
+3. Click "+ Add new global MCP server"
+4. Enter the following code:
+
+```json
+{
+  "mcpServers": {
+    "rew-mcp": {
+      "command": "npx",
+      "args": ["-y", "rew-mcp"]
+    }
+  }
+}
+```
+
+**For Cursor v0.45.6**
+
+1. Open Cursor Settings
+2. Go to Features > MCP Servers
+3. Click "+ Add New MCP Server"
+4. Enter:
+   - Name: "rew-mcp"
+   - Type: "command"
+   - Command: `npx -y rew-mcp`
+
+### Usage with VS Code
+
+For quick installation, click the installation button below:
+
+[![Install with NPX in VS Code](https://img.shields.io/badge/VS_Code-NPM-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=rew-mcp&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22rew-mcp%22%5D%7D)
+
+Or manually add to your user settings (Ctrl + Shift + P → "Preferences: Open User Settings (JSON)"):
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "rew-mcp": {
+        "command": "npx",
+        "args": ["-y", "rew-mcp"]
+      }
+    }
+  }
+}
+```
+
+Alternatively, create `.vscode/mcp.json` in your workspace:
+
+```json
+{
+  "servers": {
+    "rew-mcp": {
+      "command": "npx",
+      "args": ["-y", "rew-mcp"]
+    }
+  }
+}
+```
+
+### Usage with Windsurf
+
+Add this to your `./codeium/windsurf/model_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "rew-mcp": {
+      "command": "npx",
+      "args": ["-y", "rew-mcp"]
+    }
+  }
+}
+```
+
+### Installing via Smithery
+
+To install REW MCP for Claude Desktop automatically via [Smithery](https://smithery.ai):
+
+```bash
+npx -y @smithery/cli install rew-mcp --client claude
+```
+
 ## Quick Start Workflow
 
 ```
@@ -70,16 +206,73 @@ The MCP server **does not control REW in real time**. It:
 6. Repeat until satisfied
 ```
 
-## Implementation Deliverables
+## Available Tools
 
-When implementing this MCP server, produce:
+| Tool | Purpose | Typical Use |
+|------|---------|-------------|
+| `rew.ingest_measurement` | Parse and store REW exports | First step - load your measurement data |
+| `rew.compare_measurements` | Compare 2+ measurements | Compare placements or pre/post GLM |
+| `rew.analyze_room_modes` | Detect peaks, nulls, modes | Identify room acoustic issues |
+| `rew.analyze_decay` | Analyze decay times | Check for excessive ringing |
+| `rew.analyze_impulse` | Detect early reflections | Find reflection sources |
+| `rew.interpret_with_glm_context` | GLM-aware interpretation | Understand GLM's effectiveness |
 
-1. MCP server scaffold (TypeScript/Python)
-2. Tool schemas (JSON Schema)
-3. REW parser module
-4. Analysis engine (deterministic rules, not ML)
-5. Test suite with sample REW exports
-6. User-facing documentation
+See [Tool Specifications](#tool-specifications) section below for detailed documentation.
+
+## Usage Example
+
+```typescript
+// 1. Ingest a pre-GLM measurement
+const preGLM = await rew.ingest_measurement({
+  file_contents: fs.readFileSync('left_speaker_pre_glm.txt', 'utf-8'),
+  metadata: {
+    speaker_id: 'L',
+    condition: 'pre_glm'
+  }
+});
+
+// 2. Ingest post-GLM measurement
+const postGLM = await rew.ingest_measurement({
+  file_contents: fs.readFileSync('left_speaker_post_glm.txt', 'utf-8'),
+  metadata: {
+    speaker_id: 'L',
+    condition: 'post_glm'
+  }
+});
+
+// 3. Compare the measurements
+const comparison = await rew.compare_measurements({
+  measurement_ids: [preGLM.measurement_id, postGLM.measurement_id],
+  comparison_type: 'before_after',
+  reference_measurement_id: preGLM.measurement_id
+});
+
+// 4. Interpret with GLM context
+const interpretation = await rew.interpret_with_glm_context({
+  comparison_id: comparison.comparison_id
+});
+```
+
+## Development
+
+Build from source:
+
+```bash
+# Install dependencies
+npm install
+
+# Build
+npm run build
+
+# Run locally
+npm start
+
+# Run tests
+npm test
+
+# Watch mode for development
+npm run dev
+```
 
 ## Success Criteria
 
@@ -122,6 +315,17 @@ This server implements **MCP Protocol Version 2025-06-18**.
 - **REW File Export Documentation**: https://www.roomeqwizard.com/help/help_en-GB/html/file.html
 - **Genelec GLM**: https://www.genelec.com/glm
 
+## Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Run `npm test` to verify
+6. Submit a pull request
+
 ## License
 
-[Specify license]
+MIT License - see [LICENSE](LICENSE) file for details.
