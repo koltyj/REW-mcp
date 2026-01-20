@@ -80,24 +80,37 @@ function findRolloffFrequency(
   const rolloffTarget = maxLevel + targetLevel; // targetLevel is negative (e.g., -3 or -6)
 
   if (searchDirection === 'ascending') {
-    // Find first frequency where level exceeds rolloff (for sub high rolloff)
-    for (let i = frequencies_hz.length - 1; i >= 0; i--) {
+    // For sub high rolloff: scan from low to high, find where level drops below target
+    // Start from the point of max level and scan upward
+    const maxIdx = spl_db.indexOf(maxLevel);
+    for (let i = maxIdx; i < frequencies_hz.length; i++) {
       if (spl_db[i] <= rolloffTarget) {
-        return frequencies_hz[i + 1] || frequencies_hz[i];
+        // Return the frequency where it crosses the rolloff point
+        // Interpolate if possible for more accuracy
+        if (i > 0 && spl_db[i - 1] > rolloffTarget) {
+          return frequencies_hz[i - 1];
+        }
+        return frequencies_hz[i];
       }
     }
+    // If never crosses, return highest frequency
+    return frequencies_hz[frequencies_hz.length - 1];
   } else {
-    // Find first frequency where level falls below rolloff (for mains low rolloff)
-    for (let i = 0; i < frequencies_hz.length; i++) {
+    // For mains low rolloff: scan from high to low, find where level drops below target
+    // Start from the point of max level and scan downward
+    const maxIdx = spl_db.indexOf(maxLevel);
+    for (let i = maxIdx; i >= 0; i--) {
       if (spl_db[i] <= rolloffTarget) {
-        return frequencies_hz[i - 1] || frequencies_hz[i];
+        // Return the frequency where it crosses the rolloff point
+        if (i < frequencies_hz.length - 1 && spl_db[i + 1] > rolloffTarget) {
+          return frequencies_hz[i + 1];
+        }
+        return frequencies_hz[i];
       }
     }
+    // If never crosses, return lowest frequency
+    return frequencies_hz[0];
   }
-
-  return searchDirection === 'ascending' 
-    ? frequencies_hz[frequencies_hz.length - 1] 
-    : frequencies_hz[0];
 }
 
 /**
@@ -404,8 +417,9 @@ export function predictCombinedResponse(
     const mainsPhase = interpolatePhase(mains, freq) * Math.PI / 180;
     let subPhase = interpolatePhase(sub, freq) * Math.PI / 180;
     
-    // Apply delay as phase shift: phase_shift = 2 * PI * freq * delay
-    const delayPhaseShift = 2 * Math.PI * freq * (delayMs / 1000);
+    // Apply delay as phase shift: positive delay = phase lag = negative phase shift
+    // phase_shift = -2 * PI * freq * delay
+    const delayPhaseShift = -2 * Math.PI * freq * (delayMs / 1000);
     subPhase += delayPhaseShift;
     
     // Apply polarity inversion if requested
