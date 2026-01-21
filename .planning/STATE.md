@@ -5,34 +5,35 @@
 See: .planning/PROJECT.md (updated 2026-01-21)
 
 **Core value:** Claude can autonomously measure, interpret, and guide fixes for room acoustics — turning raw frequency response data into actionable placement and treatment recommendations.
-**Current focus:** Phase 1 - Core API + MCP Validation
+**Current focus:** Phase 2 - Testing Infrastructure
 
 ## Current Position
 
-Phase: 2 of 8 (Testing Infrastructure) — Ready for planning
-Plan: 0 of TBD in current phase
-Status: Phase 1 complete, Phase 2 not started
-Last activity: 2026-01-21 — Completed Phase 1 verification (all 4 plans executed)
+Phase: 2 of 8 (Testing Infrastructure) — In progress
+Plan: 1 of 3 in current phase
+Status: Phase 2 in progress
+Last activity: 2026-01-21 — Completed 02-01-PLAN.md
 
-Progress: [██████████] 100% (Phase 1)
-Progress: [░░░░░░░░░░] 0% (Phase 2)
+Progress: [██████████] 100% (Phase 1: 4/4 plans)
+Progress: [███░░░░░░░] 33% (Phase 2: 1/3 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 6.25 min
-- Total execution time: 0.4 hours
+- Total plans completed: 5
+- Average duration: 5.2 min
+- Total execution time: 0.43 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1 (Core API + MCP Validation) | 4 | 25 min | 6.25 min |
+| 2 (Testing Infrastructure) | 1 | 2 min | 2 min |
 
 **Recent Trend:**
-- Last 5 plans: 7m (01-01), 4m (01-02), 7m (01-03), 7m (01-04)
-- Trend: Stable (~5-7min per plan)
+- Last 5 plans: 4m (01-02), 7m (01-03), 7m (01-04), 2m (02-01)
+- Trend: Accelerating (avg 5.0min for last 4 plans)
 
 *Updated after each plan completion*
 
@@ -60,6 +61,9 @@ Recent decisions affecting current work:
 - **01-04:** URL encoding verification for smoothing parameters (1/3 → 1%2F3)
 - **01-04:** Test realistic array sizes (4096 points) to match typical REW measurements
 - **01-04:** Validate empty response edge case for graceful degradation
+- **02-01:** Start coverage thresholds below current levels (45%) to prevent immediate CI failures
+- **02-01:** Use vitest-coverage-report-action instead of codecov for better PR integration
+- **02-01:** Test European decimal format via parseFrequencyResponse (public API) not internal parseNumber
 
 ### Pending Todos
 
@@ -81,6 +85,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-21 16:10 UTC
-Stopped at: Phase 1 complete, Phase 2 ready for planning
-Resume file: None (phase complete)
+Last session: 2026-01-21 17:08 UTC
+Stopped at: Completed 02-01-PLAN.md
+Resume file: None (plan complete)
