@@ -8,6 +8,16 @@
 import { decodeREWFloatArray } from './base64-decoder.js';
 import type { FrequencyResponseData, ImpulseResponseData } from '../types/index.js';
 import { REWApiError } from './rew-api-error.js';
+import {
+  MeasurementInfoSchema,
+  InputCalibrationSchema,
+  ImpulseResponseSchema,
+  WaterfallSchema,
+  RT60Schema,
+  FrequencyResponseSchema,
+  validateApiResponse,
+  type InputCalibration
+} from './schemas.js';
 
 export interface REWApiConfig {
   host: string;      // Default: '127.0.0.1'
@@ -75,7 +85,7 @@ export interface RT60Data {
  */
 interface REWApiResponse {
   status: number;
-  data?: any;
+  data?: unknown;
   error?: string;
 }
 
@@ -102,7 +112,7 @@ export class REWApiClient {
   private async request(
     method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     path: string,
-    body?: any
+    body?: unknown
   ): Promise<REWApiResponse> {
     const url = `${this.baseUrl}${path}`;
     
@@ -236,7 +246,9 @@ export class REWApiClient {
       }
 
       // Extract API version from OpenAPI spec
-      const apiVersion = healthCheck.data?.info?.version;
+      const apiVersion = (healthCheck.data as Record<string, unknown>)?.info ?
+        ((healthCheck.data as Record<string, unknown>).info as Record<string, unknown>).version as string :
+        undefined;
 
       // Verify we can access measurements endpoint (this is more reliable than /application)
       const measurementsResponse = await this.request('GET', '/measurements');
@@ -265,8 +277,9 @@ export class REWApiClient {
 
       // Try to get application info (optional - may not exist in all versions)
       const appResponse = await this.request('GET', '/application');
-      const rewVersion = appResponse.status === 200 ? appResponse.data?.version : apiVersion;
-      const hasProFeatures = appResponse.status === 200 ? (appResponse.data?.proFeatures || false) : false;
+      const appData = appResponse.data as Record<string, unknown> | undefined;
+      const rewVersion = appResponse.status === 200 ? (appData?.version as string) : apiVersion;
+      const hasProFeatures = appResponse.status === 200 ? ((appData?.proFeatures as boolean) || false) : false;
 
       // Check for blocking mode capability (optional)
       const blockingResponse = await this.request('GET', '/application/blocking');
@@ -328,7 +341,8 @@ export class REWApiClient {
 
     if (docResponse.status === 200) {
       // Extract version from OpenAPI spec if available
-      const version = docResponse.data?.info?.version;
+      const docData = docResponse.data as Record<string, unknown> | undefined;
+      const version = docData?.info ? ((docData.info as Record<string, unknown>).version as string) : undefined;
       return {
         server_responding: true,
         openapi_available: true,
@@ -364,19 +378,33 @@ export class REWApiClient {
    */
   async listMeasurements(): Promise<MeasurementInfo[]> {
     const response = await this.request('GET', '/measurements');
-    
+
     if (response.status !== 200 || !Array.isArray(response.data)) {
       return [];
     }
 
-    return response.data.map((m: any, index: number) => ({
-      uuid: m.uuid || m.id || `measurement_${index}`,
-      name: m.name || `Measurement ${index + 1}`,
-      index,
-      type: m.type || 'unknown',
-      has_ir: m.hasImpulse !== false,
-      has_fr: m.hasFrequencyResponse !== false
-    }));
+    return response.data.map((m: unknown, index: number) => {
+      const parsed = MeasurementInfoSchema.safeParse(m);
+      if (!parsed.success) {
+        // Fallback for malformed data
+        return {
+          uuid: String((m as Record<string, unknown>)?.uuid ?? (m as Record<string, unknown>)?.id ?? `measurement-${index}`),
+          name: String((m as Record<string, unknown>)?.name ?? `Measurement ${index + 1}`),
+          index,
+          type: 'unknown',
+          has_ir: false,
+          has_fr: false
+        };
+      }
+      return {
+        uuid: parsed.data.uuid || parsed.data.id || `measurement_${index}`,
+        name: parsed.data.name || `Measurement ${index + 1}`,
+        index: parsed.data.index ?? index,
+        type: parsed.data.type || 'unknown',
+        has_ir: parsed.data.has_ir ?? (parsed.data.hasImpulse !== false),
+        has_fr: parsed.data.has_fr ?? (parsed.data.hasFrequencyResponse !== false)
+      };
+    });
   }
 
   /**
@@ -389,15 +417,15 @@ export class REWApiClient {
       this.handleResponseError(response, `Measurement ${uuid}`);
     }
 
-    const data = response.data;
+    const data = response.data as Record<string, unknown>;
 
     return {
-      uuid: data.uuid || uuid,
-      name: data.name || 'Unknown',
+      uuid: (data.uuid as string) || uuid,
+      name: (data.name as string) || 'Unknown',
       metadata: {
-        sample_rate_hz: data.sampleRate,
-        start_time: data.startTime,
-        notes: data.notes
+        sample_rate_hz: data.sampleRate as number | undefined,
+        start_time: data.startTime as string | undefined,
+        notes: data.notes as string | undefined
       }
     };
   }
@@ -432,24 +460,28 @@ export class REWApiClient {
       this.handleResponseError(response, `Frequency response for ${uuid}`);
     }
 
-    const data = response.data;
+    const data = response.data as Record<string, unknown>;
 
     // Decode Base64 arrays per REW API spec
     const frequencies = data.frequencies
-      ? decodeREWFloatArray(data.frequencies)
+      ? decodeREWFloatArray(data.frequencies as string)
       : [];
-    const spl = data.magnitude || data.spl
-      ? decodeREWFloatArray(data.magnitude || data.spl)
+    const spl = (data.magnitude || data.spl)
+      ? decodeREWFloatArray((data.magnitude || data.spl) as string)
       : [];
     const phase = data.phase
-      ? decodeREWFloatArray(data.phase)
+      ? decodeREWFloatArray(data.phase as string)
       : frequencies.map(() => 0);
 
-    return {
+    const result: FrequencyResponseData = {
       frequencies_hz: frequencies,
       spl_db: spl,
       phase_degrees: phase
     };
+
+    // Validate structure matches schema
+    validateApiResponse(FrequencyResponseSchema, result, 'getFrequencyResponse');
+    return result;
   }
 
   /**
@@ -476,11 +508,18 @@ export class REWApiClient {
       this.handleResponseError(response, `Impulse response for ${uuid}`);
     }
 
-    const data = response.data;
+    const rawData = response.data;
+
+    // Validate structure before processing
+    if (typeof rawData !== 'object' || rawData === null) {
+      throw new REWApiError('Invalid impulse response data structure', 'INVALID_RESPONSE', 200);
+    }
+
+    const data = rawData as Record<string, unknown>;
 
     // Decode Base64 array
     const samples = data.samples
-      ? decodeREWFloatArray(data.samples)
+      ? decodeREWFloatArray(data.samples as string)
       : [];
 
     // Find peak
@@ -494,15 +533,19 @@ export class REWApiClient {
       }
     }
 
-    const sampleRate = data.sampleRate || 48000;
+    const sampleRate = (data.sampleRate as number) || 48000;
 
-    return {
+    const result: ImpulseResponseData = {
       samples,
       sample_rate_hz: sampleRate,
       peak_index: peakIndex,
-      start_time_s: data.startTime || 0,
+      start_time_s: (data.startTime as number) || 0,
       duration_s: samples.length / sampleRate
     };
+
+    // Validate final structure
+    validateApiResponse(ImpulseResponseSchema, result, 'getImpulseResponse');
+    return result;
   }
 
   /**
@@ -523,20 +566,20 @@ export class REWApiClient {
       this.handleResponseError(response, `Waterfall data for ${uuid}`);
     }
 
-    const data = response.data;
+    const rawData = response.data as Record<string, unknown>;
 
     // Decode frequency array
-    const frequencies = data.frequencies
-      ? decodeREWFloatArray(data.frequencies)
+    const frequencies = rawData.frequencies
+      ? decodeREWFloatArray(rawData.frequencies as string)
       : [];
 
     // Time slices
-    const timeSlices = data.timeSlices || [];
+    const timeSlices = (rawData.timeSlices as number[]) || [];
 
     // Magnitude data (2D array)
     const magnitude: number[][] = [];
-    if (Array.isArray(data.magnitude)) {
-      for (const slice of data.magnitude) {
+    if (Array.isArray(rawData.magnitude)) {
+      for (const slice of rawData.magnitude) {
         if (typeof slice === 'string') {
           magnitude.push(decodeREWFloatArray(slice));
         } else if (Array.isArray(slice)) {
@@ -545,11 +588,13 @@ export class REWApiClient {
       }
     }
 
-    return {
+    const result = {
       frequencies_hz: frequencies,
       time_slices_ms: timeSlices,
       magnitude_db: magnitude
     };
+
+    return validateApiResponse(WaterfallSchema, result, 'getWaterfallData');
   }
 
   /**
@@ -562,14 +607,16 @@ export class REWApiClient {
       this.handleResponseError(response, `RT60 data for ${uuid}`);
     }
 
-    const data = response.data;
+    const data = response.data as Record<string, unknown>;
 
-    return {
-      frequencies_hz: data.frequencies ? decodeREWFloatArray(data.frequencies) : [],
-      t20_seconds: data.t20 ? decodeREWFloatArray(data.t20) : [],
-      t30_seconds: data.t30 ? decodeREWFloatArray(data.t30) : [],
-      edt_seconds: data.edt ? decodeREWFloatArray(data.edt) : []
+    const result = {
+      frequencies_hz: data.frequencies ? decodeREWFloatArray(data.frequencies as string) : [],
+      t20_seconds: data.t20 ? decodeREWFloatArray(data.t20 as string) : [],
+      t30_seconds: data.t30 ? decodeREWFloatArray(data.t30 as string) : [],
+      edt_seconds: data.edt ? decodeREWFloatArray(data.edt as string) : []
     };
+
+    return validateApiResponse(RT60Schema, result, 'getRT60');
   }
 
   /**
@@ -614,7 +661,7 @@ export class REWApiClient {
     success: boolean;
     status: number;
     message?: string;
-    data?: any;
+    data?: unknown;
   }> {
     const body = { 
       command, 
@@ -639,7 +686,7 @@ export class REWApiClient {
     if (response.status !== 200) {
       this.handleResponseError(response, 'Measurement level');
     }
-    return response.data;
+    return response.data as { level: number; unit: string };
   }
 
   /**
@@ -679,7 +726,12 @@ export class REWApiClient {
     if (response.status !== 200) {
       this.handleResponseError(response, 'Sweep configuration');
     }
-    return response.data;
+    return response.data as {
+      startFreq: number;
+      endFreq: number;
+      length: number;
+      fillSilenceWithDither?: boolean;
+    };
   }
 
   /**
@@ -698,7 +750,7 @@ export class REWApiClient {
   /**
    * Get measurement naming settings
    */
-  async getMeasureNaming(): Promise<any> {
+  async getMeasureNaming(): Promise<unknown> {
     const response = await this.request('GET', '/measure/naming');
     if (response.status !== 200) {
       this.handleResponseError(response, 'Measurement naming settings');
@@ -727,7 +779,7 @@ export class REWApiClient {
     if (response.status !== 200) {
       this.handleResponseError(response, 'Measurement notes');
     }
-    return response.data;
+    return response.data as string;
   }
 
   async setMeasureNotes(notes: string): Promise<boolean> {
@@ -738,7 +790,7 @@ export class REWApiClient {
   /**
    * Get timing reference settings
    */
-  async getTimingReference(): Promise<any> {
+  async getTimingReference(): Promise<unknown> {
     const response = await this.request('GET', '/measure/timing/reference');
     if (response.status !== 200) {
       this.handleResponseError(response, 'Timing reference settings');
@@ -762,7 +814,11 @@ export class REWApiClient {
     if (response.status !== 200) {
       this.handleResponseError(response, 'Audio status');
     }
-    return response.data;
+    return response.data as {
+      enabled: boolean;
+      ready: boolean;
+      driver?: string;
+    };
   }
 
   /**
@@ -773,7 +829,7 @@ export class REWApiClient {
     if (response.status !== 200) {
       this.handleResponseError(response, 'Audio driver');
     }
-    return response.data;
+    return response.data as string;
   }
 
   /**
@@ -795,7 +851,7 @@ export class REWApiClient {
     if (response.status !== 200) {
       this.handleResponseError(response, 'Sample rate');
     }
-    return response.data;
+    return response.data as number;
   }
 
   /**
@@ -849,7 +905,7 @@ export class REWApiClient {
     if (response.status !== 200) {
       this.handleResponseError(response, 'Java input device');
     }
-    return response.data;
+    return response.data as string;
   }
 
   /**
@@ -870,7 +926,7 @@ export class REWApiClient {
     if (response.status !== 200) {
       this.handleResponseError(response, 'Java output device');
     }
-    return response.data;
+    return response.data as string;
   }
 
   /**
@@ -886,12 +942,16 @@ export class REWApiClient {
   /**
    * Get input calibration configuration
    */
-  async getInputCalibration(): Promise<any> {
+  async getInputCalibration(): Promise<InputCalibration | null> {
     const response = await this.request('GET', '/audio/input-cal');
     if (response.status !== 200) {
-      this.handleResponseError(response, 'Input calibration');
+      return null;
     }
-    return response.data;
+    if (response.data) {
+      const result = InputCalibrationSchema.safeParse(response.data);
+      return result.success ? result.data : null;
+    }
+    return null;
   }
 
   // ============================================================
@@ -911,7 +971,12 @@ export class REWApiClient {
     if (response.status !== 200) {
       this.handleResponseError(response, 'Generator status');
     }
-    return response.data;
+    return response.data as {
+      enabled: boolean;
+      playing: boolean;
+      signal?: string;
+      level?: number;
+    };
   }
 
   /**
@@ -933,7 +998,7 @@ export class REWApiClient {
     if (response.status !== 200) {
       this.handleResponseError(response, 'Generator signal');
     }
-    return response.data;
+    return response.data as string;
   }
 
   /**
@@ -953,7 +1018,7 @@ export class REWApiClient {
     if (response.status !== 200) {
       this.handleResponseError(response, 'Generator level');
     }
-    return response.data;
+    return response.data as { level: number; unit: string };
   }
 
   /**
@@ -975,7 +1040,7 @@ export class REWApiClient {
     if (response.status !== 200) {
       this.handleResponseError(response, 'Generator frequency');
     }
-    return response.data;
+    return response.data as number;
   }
 
   /**
@@ -1047,13 +1112,19 @@ export class REWApiClient {
     if (response.status !== 200) {
       this.handleResponseError(response, `SPL meter ${meterId} levels`);
     }
-    return response.data;
+    return response.data as {
+      spl: number;
+      leq: number;
+      sel: number;
+      weighting: string;
+      filter: string;
+    };
   }
 
   /**
    * Get SPL meter configuration
    */
-  async getSPLMeterConfig(meterId: number): Promise<any> {
+  async getSPLMeterConfig(meterId: number): Promise<unknown> {
     const response = await this.request('GET', `/spl-meter/${meterId}/configuration`);
     if (response.status !== 200) {
       this.handleResponseError(response, `SPL meter ${meterId} configuration`);
