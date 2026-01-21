@@ -51,11 +51,85 @@ describe('REW Text Parser', () => {
       const content = `* Freq(Hz) SPL(dB)
 20,0\t80,5
 25,0\t82,1`;
-      
+
       const result = parseFrequencyResponse(content);
-      
+
       expect(result.frequency_response.frequencies_hz[0]).toBe(20.0);
       expect(result.frequency_response.spl_db[0]).toBe(80.5);
+    });
+
+    describe('European decimal format (FNDN-12)', () => {
+      // Note: parseNumber is internal, test via parseFrequencyResponse
+
+      it('should handle European format with thousands separator (1.234,56)', () => {
+        const content = `* Freq(Hz) SPL(dB)
+1.234,56\t80,5
+12.345,67\t82,1`;
+
+        const result = parseFrequencyResponse(content);
+
+        expect(result.frequency_response.frequencies_hz[0]).toBeCloseTo(1234.56, 2);
+        expect(result.frequency_response.frequencies_hz[1]).toBeCloseTo(12345.67, 2);
+        expect(result.frequency_response.spl_db[0]).toBeCloseTo(80.5, 1);
+      });
+
+      it('should handle negative European decimals', () => {
+        const content = `* Freq(Hz) SPL(dB)
+20,0\t-3,5
+40,0\t-12,45`;
+
+        const result = parseFrequencyResponse(content);
+
+        expect(result.frequency_response.spl_db[0]).toBeCloseTo(-3.5, 1);
+        expect(result.frequency_response.spl_db[1]).toBeCloseTo(-12.45, 2);
+      });
+
+      it('should handle European phase values', () => {
+        const content = `* Freq(Hz) SPL(dB) Phase(degrees)
+20,0\t80,5\t-45,5
+40,0\t82,1\t-90,0`;
+
+        const result = parseFrequencyResponse(content);
+
+        expect(result.frequency_response.phase_degrees[0]).toBeCloseTo(-45.5, 1);
+        expect(result.frequency_response.phase_degrees[1]).toBeCloseTo(-90.0, 1);
+      });
+
+      it('should handle whitespace around European numbers', () => {
+        const content = `* Freq(Hz) SPL(dB)
+  20,0  \t  80,5
+  40,0  \t  82,1  `;
+
+        const result = parseFrequencyResponse(content);
+
+        expect(result.frequency_response.frequencies_hz[0]).toBe(20.0);
+        expect(result.frequency_response.frequencies_hz[1]).toBe(40.0);
+      });
+
+      it('should handle zero in European format', () => {
+        const content = `* Freq(Hz) SPL(dB)
+20,0\t0,0
+40,0\t0,00`;
+
+        const result = parseFrequencyResponse(content);
+
+        expect(result.frequency_response.spl_db[0]).toBe(0);
+        expect(result.frequency_response.spl_db[1]).toBe(0);
+      });
+
+      it('should handle mixed US and European format in same file', () => {
+        // This tests robustness - real files should be consistent but we handle edge cases
+        const content = `* Freq(Hz) SPL(dB)
+20.0\t80.5
+40,0\t82,1`;
+
+        const result = parseFrequencyResponse(content);
+
+        expect(result.frequency_response.frequencies_hz[0]).toBe(20.0);
+        expect(result.frequency_response.frequencies_hz[1]).toBe(40.0);
+        expect(result.frequency_response.spl_db[0]).toBe(80.5);
+        expect(result.frequency_response.spl_db[1]).toBe(82.1);
+      });
     });
 
     it('should warn on insufficient data', () => {
