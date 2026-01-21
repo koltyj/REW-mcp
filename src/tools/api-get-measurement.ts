@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { getActiveApiClient } from './api-connect.js';
 import { measurementStore } from '../store/measurement.js';
 import { calculateQuickStats } from '../analysis/peaks-nulls.js';
+import { REWApiError } from '../api/rew-api-error.js';
 import type { StoredMeasurement, ToolResponse } from '../types/index.js';
 
 // Input schema
@@ -75,14 +76,6 @@ export async function executeApiGetMeasurement(input: ApiGetMeasurementInput): P
 
     // Get measurement info
     const measurementData = await client.getMeasurement(validated.measurement_uuid);
-    if (!measurementData) {
-      return {
-        status: 'error',
-        error_type: 'measurement_not_found',
-        message: `Measurement not found: ${validated.measurement_uuid}`,
-        suggestion: 'Use rew.api_list_measurements to see available measurements'
-      };
-    }
 
     // Get frequency response
     const smoothingMap: Record<string, string | undefined> = {
@@ -99,7 +92,7 @@ export async function executeApiGetMeasurement(input: ApiGetMeasurementInput): P
       smoothing: smoothingMap[validated.smoothing]
     });
 
-    if (!frequencyResponse || frequencyResponse.frequencies_hz.length === 0) {
+    if (frequencyResponse.frequencies_hz.length === 0) {
       return {
         status: 'error',
         error_type: 'no_data',
@@ -193,6 +186,23 @@ export async function executeApiGetMeasurement(input: ApiGetMeasurementInput): P
         error_type: 'validation_error',
         message: `Invalid input: ${error.errors.map(e => e.message).join(', ')}`,
         suggestion: 'Check that all required fields are provided and valid'
+      };
+    }
+
+    if (error instanceof REWApiError) {
+      const suggestionMap: Record<string, string> = {
+        'NOT_FOUND': 'Use rew.api_list_measurements to see available measurements',
+        'CONNECTION_REFUSED': 'Ensure REW is running with API enabled. Check Preferences → API → Start',
+        'TIMEOUT': 'REW took too long to respond. Check if REW is busy or frozen',
+        'INTERNAL_ERROR': 'Check REW application for errors',
+        'INVALID_RESPONSE': 'Check REW application for errors'
+      };
+
+      return {
+        status: 'error',
+        error_type: error.code.toLowerCase(),
+        message: error.message,
+        suggestion: suggestionMap[error.code] || 'Check REW application for errors'
       };
     }
 

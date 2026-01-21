@@ -7,6 +7,7 @@
 
 import { z } from 'zod';
 import { getActiveApiClient } from './api-connect.js';
+import { REWApiError } from '../api/rew-api-error.js';
 import type { ToolResponse } from '../types/index.js';
 
 // Input schema for measure commands
@@ -231,6 +232,23 @@ export async function executeApiMeasure(input: ApiMeasureInput): Promise<ToolRes
         error_type: 'validation_error',
         message: `Invalid input: ${error.errors.map(e => e.message).join(', ')}`,
         suggestion: 'Check input parameters'
+      };
+    }
+
+    if (error instanceof REWApiError) {
+      const suggestionMap: Record<string, string> = {
+        'NOT_FOUND': 'Check REW application for errors',
+        'CONNECTION_REFUSED': 'Ensure REW is running with API enabled. Check Preferences → API → Start',
+        'TIMEOUT': 'REW took too long to respond. Check if REW is busy or frozen',
+        'INTERNAL_ERROR': 'Check REW application for errors',
+        'INVALID_RESPONSE': 'Check REW application for errors'
+      };
+
+      return {
+        status: 'error',
+        error_type: error.code.toLowerCase(),
+        message: error.message,
+        suggestion: suggestionMap[error.code] || 'Check REW application for errors'
       };
     }
 
