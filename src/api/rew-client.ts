@@ -156,28 +156,83 @@ export class REWApiClient {
 
   /**
    * Connect to REW API and verify connection
+   * 
+   * Per REW docs, the API is accessible at localhost:4735 by default.
+   * The OpenAPI spec is at /doc.json or /doc.yaml.
+   * Swagger UI is served at the root URL.
+   * 
+   * NOTE: The /application endpoint may not exist in all REW versions,
+   * so we use /doc.json and /measurements as the primary health checks.
    */
   async connect(): Promise<ConnectionStatus> {
     try {
-      // Try to get application info
-      const response = await this.request('GET', '/application');
+      // First, verify the API server is actually running by checking the OpenAPI spec
+      // This is the most reliable endpoint since swagger-ui serves it
+      const healthCheck = await this.request('GET', '/doc.json');
       
-      if (response.status !== 200) {
+      if (healthCheck.status === 0) {
+        // Connection refused - REW not running or API not enabled
         return {
           connected: false,
           measurements_available: 0,
           api_capabilities: { pro_features: false, blocking_mode: false },
-          error_message: response.error || `HTTP ${response.status}`
+          error_message: `Cannot connect to REW at ${this.baseUrl}. Ensure REW is running and the API is enabled in Preferences → API (click "Start" button).`
+        };
+      }
+      
+      if (healthCheck.status === 404) {
+        // Server responding but endpoint not found - likely wrong port or old REW version
+        return {
+          connected: false,
+          measurements_available: 0,
+          api_capabilities: { pro_features: false, blocking_mode: false },
+          error_message: `REW API endpoint not found (HTTP 404). This usually means: (1) REW version is too old (API requires v5.30+), or (2) The API server isn't started. Check Preferences → API and click "Start". Also verify the port number matches.`
+        };
+      }
+      
+      if (healthCheck.status !== 200) {
+        return {
+          connected: false,
+          measurements_available: 0,
+          api_capabilities: { pro_features: false, blocking_mode: false },
+          error_message: healthCheck.error || `Unexpected HTTP ${healthCheck.status} from /doc.json endpoint`
         };
       }
 
-      // Get measurement count
+      // Extract API version from OpenAPI spec
+      const apiVersion = healthCheck.data?.info?.version;
+
+      // Verify we can access measurements endpoint (this is more reliable than /application)
       const measurementsResponse = await this.request('GET', '/measurements');
+      
+      if (measurementsResponse.status === 404) {
+        return {
+          connected: false,
+          measurements_available: 0,
+          api_capabilities: { pro_features: false, blocking_mode: false },
+          error_message: `REW /measurements endpoint not found. The API may be partially available. Check REW version.`
+        };
+      }
+      
+      if (measurementsResponse.status !== 200) {
+        return {
+          connected: false,
+          measurements_available: 0,
+          api_capabilities: { pro_features: false, blocking_mode: false },
+          error_message: measurementsResponse.error || `Unexpected HTTP ${measurementsResponse.status} from /measurements endpoint`
+        };
+      }
+
       const measurementCount = Array.isArray(measurementsResponse.data) 
         ? measurementsResponse.data.length 
         : 0;
 
-      // Check for blocking mode capability
+      // Try to get application info (optional - may not exist in all versions)
+      const appResponse = await this.request('GET', '/application');
+      const rewVersion = appResponse.status === 200 ? appResponse.data?.version : apiVersion;
+      const hasProFeatures = appResponse.status === 200 ? (appResponse.data?.proFeatures || false) : false;
+
+      // Check for blocking mode capability (optional)
       const blockingResponse = await this.request('GET', '/application/blocking');
       const hasBlocking = blockingResponse.status === 200;
 
@@ -185,10 +240,10 @@ export class REWApiClient {
 
       return {
         connected: true,
-        rew_version: response.data?.version,
+        rew_version: rewVersion,
         measurements_available: measurementCount,
         api_capabilities: {
-          pro_features: response.data?.proFeatures || false,
+          pro_features: hasProFeatures,
           blocking_mode: hasBlocking
         }
       };
@@ -200,6 +255,57 @@ export class REWApiClient {
         error_message: error instanceof Error ? error.message : 'Connection failed'
       };
     }
+  }
+
+  /**
+   * Check API health without full connection
+   * Returns diagnostic info about the API server state
+   */
+  async healthCheck(): Promise<{
+    server_responding: boolean;
+    openapi_available: boolean;
+    api_version?: string;
+    error?: string;
+    suggestion?: string;
+  }> {
+    // Try the OpenAPI spec first
+    const docResponse = await this.request('GET', '/doc.json');
+    
+    if (docResponse.status === 0) {
+      return {
+        server_responding: false,
+        openapi_available: false,
+        error: docResponse.error || 'Connection refused',
+        suggestion: 'REW is not responding. Ensure REW is running and go to Preferences → API → click "Start".'
+      };
+    }
+
+    if (docResponse.status === 404) {
+      // Something is responding but it's not the REW API
+      return {
+        server_responding: true,
+        openapi_available: false,
+        error: 'HTTP 404 - API spec not found',
+        suggestion: 'A server is responding but the REW API is not available. Check: (1) REW version is 5.30+, (2) API is enabled and started in Preferences → API, (3) Port number is correct.'
+      };
+    }
+
+    if (docResponse.status === 200) {
+      // Extract version from OpenAPI spec if available
+      const version = docResponse.data?.info?.version;
+      return {
+        server_responding: true,
+        openapi_available: true,
+        api_version: version
+      };
+    }
+
+    return {
+      server_responding: true,
+      openapi_available: false,
+      error: `Unexpected status: ${docResponse.status}`,
+      suggestion: 'Check REW API settings and try restarting the API server.'
+    };
   }
 
   /**
@@ -445,6 +551,490 @@ export class REWApiClient {
   async getBlockingMode(): Promise<boolean> {
     const response = await this.request('GET', '/application/blocking');
     return response.status === 200 && response.data === true;
+  }
+
+  // ============================================================
+  // MEASUREMENT CONTROL METHODS
+  // Note: Automated sweep measurements require REW Pro license
+  // ============================================================
+
+  /**
+   * Get list of available measurement commands
+   */
+  async getMeasureCommands(): Promise<string[]> {
+    const response = await this.request('GET', '/measure/commands');
+    if (response.status !== 200) {
+      return [];
+    }
+    return Array.isArray(response.data) ? response.data : [];
+  }
+
+  /**
+   * Execute a measurement command
+   * Common commands: "Measure", "SPL", "Impedance", "Cancel"
+   * API expects: { command: "Measure", parameters: [] }
+   */
+  async executeMeasureCommand(command: string, parameters?: string[]): Promise<{
+    success: boolean;
+    status: number;
+    message?: string;
+    data?: any;
+  }> {
+    const body = { 
+      command, 
+      parameters: parameters || [] 
+    };
+    
+    const response = await this.request('POST', '/measure/command', body);
+    
+    return {
+      success: response.status === 200 || response.status === 202,
+      status: response.status,
+      message: response.status === 202 ? 'Measurement started (async)' : undefined,
+      data: response.data
+    };
+  }
+
+  /**
+   * Get current measurement level
+   */
+  async getMeasureLevel(): Promise<{ level: number; unit: string } | null> {
+    const response = await this.request('GET', '/measure/level');
+    if (response.status !== 200) {
+      return null;
+    }
+    return response.data;
+  }
+
+  /**
+   * Set measurement level
+   * API expects: { value: -12, unit: "dBFS" }
+   * @param level - Level value
+   * @param unit - Unit (dBFS, dBV, dBu, etc.) - defaults to dBFS
+   */
+  async setMeasureLevel(level: number, unit?: string): Promise<boolean> {
+    const body: { value: number; unit?: string } = { value: level };
+    if (unit) body.unit = unit;
+    const response = await this.request('POST', '/measure/level', body);
+    return response.status === 200;
+  }
+
+  /**
+   * Get available level units
+   */
+  async getMeasureLevelUnits(): Promise<string[]> {
+    const response = await this.request('GET', '/measure/level/units');
+    if (response.status !== 200) {
+      return [];
+    }
+    return Array.isArray(response.data) ? response.data : [];
+  }
+
+  /**
+   * Get sweep configuration
+   */
+  async getSweepConfig(): Promise<{
+    startFreq: number;
+    endFreq: number;
+    length: number;
+    fillSilenceWithDither?: boolean;
+  } | null> {
+    const response = await this.request('GET', '/measure/sweep/configuration');
+    if (response.status !== 200) {
+      return null;
+    }
+    return response.data;
+  }
+
+  /**
+   * Set sweep configuration
+   */
+  async setSweepConfig(config: {
+    startFreq?: number;
+    endFreq?: number;
+    length?: number;
+    fillSilenceWithDither?: boolean;
+  }): Promise<boolean> {
+    const response = await this.request('POST', '/measure/sweep/configuration', config);
+    return response.status === 200;
+  }
+
+  /**
+   * Get measurement naming settings
+   */
+  async getMeasureNaming(): Promise<any> {
+    const response = await this.request('GET', '/measure/naming');
+    if (response.status !== 200) {
+      return null;
+    }
+    return response.data;
+  }
+
+  /**
+   * Set measurement naming settings
+   */
+  async setMeasureNaming(naming: {
+    prefix?: string;
+    includeDate?: boolean;
+    includeTime?: boolean;
+    dateTimeFormat?: string;
+  }): Promise<boolean> {
+    const response = await this.request('POST', '/measure/naming', naming);
+    return response.status === 200;
+  }
+
+  /**
+   * Get/set notes for next measurement
+   */
+  async getMeasureNotes(): Promise<string | null> {
+    const response = await this.request('GET', '/measure/notes');
+    if (response.status !== 200) {
+      return null;
+    }
+    return response.data;
+  }
+
+  async setMeasureNotes(notes: string): Promise<boolean> {
+    const response = await this.request('POST', '/measure/notes', notes);
+    return response.status === 200;
+  }
+
+  /**
+   * Get timing reference settings
+   */
+  async getTimingReference(): Promise<any> {
+    const response = await this.request('GET', '/measure/timing/reference');
+    if (response.status !== 200) {
+      return null;
+    }
+    return response.data;
+  }
+
+  // ============================================================
+  // AUDIO CONFIGURATION METHODS
+  // ============================================================
+
+  /**
+   * Get audio status
+   */
+  async getAudioStatus(): Promise<{
+    enabled: boolean;
+    ready: boolean;
+    driver?: string;
+  } | null> {
+    const response = await this.request('GET', '/audio');
+    if (response.status !== 200) {
+      return null;
+    }
+    return response.data;
+  }
+
+  /**
+   * Get current audio driver
+   */
+  async getAudioDriver(): Promise<string | null> {
+    const response = await this.request('GET', '/audio/driver');
+    if (response.status !== 200) {
+      return null;
+    }
+    return response.data;
+  }
+
+  /**
+   * Get available audio driver types
+   */
+  async getAudioDriverTypes(): Promise<string[]> {
+    const response = await this.request('GET', '/audio/driver-types');
+    if (response.status !== 200) {
+      return [];
+    }
+    return Array.isArray(response.data) ? response.data : [];
+  }
+
+  /**
+   * Get current sample rate
+   */
+  async getSampleRate(): Promise<number | null> {
+    const response = await this.request('GET', '/audio/samplerate');
+    if (response.status !== 200) {
+      return null;
+    }
+    return response.data;
+  }
+
+  /**
+   * Get available sample rates
+   */
+  async getAvailableSampleRates(): Promise<number[]> {
+    const response = await this.request('GET', '/audio/samplerates');
+    if (response.status !== 200) {
+      return [];
+    }
+    return Array.isArray(response.data) ? response.data : [];
+  }
+
+  /**
+   * Set sample rate
+   * API expects: { value: 48000, unit: "Hz" }
+   */
+  async setSampleRate(rate: number): Promise<boolean> {
+    const response = await this.request('POST', '/audio/samplerate', { value: rate, unit: 'Hz' });
+    // API returns 202 for async changes
+    return response.status === 200 || response.status === 202;
+  }
+
+  /**
+   * Get Java audio input devices
+   */
+  async getJavaInputDevices(): Promise<string[]> {
+    const response = await this.request('GET', '/audio/java/input-devices');
+    if (response.status !== 200) {
+      return [];
+    }
+    return Array.isArray(response.data) ? response.data : [];
+  }
+
+  /**
+   * Get Java audio output devices
+   */
+  async getJavaOutputDevices(): Promise<string[]> {
+    const response = await this.request('GET', '/audio/java/output-devices');
+    if (response.status !== 200) {
+      return [];
+    }
+    return Array.isArray(response.data) ? response.data : [];
+  }
+
+  /**
+   * Get current Java input device
+   */
+  async getJavaInputDevice(): Promise<string | null> {
+    const response = await this.request('GET', '/audio/java/input-device');
+    if (response.status !== 200) {
+      return null;
+    }
+    return response.data;
+  }
+
+  /**
+   * Set Java input device
+   * API expects: { device: "Device Name" }
+   */
+  async setJavaInputDevice(device: string): Promise<boolean> {
+    const response = await this.request('POST', '/audio/java/input-device', { device });
+    // API returns 202 for async device changes
+    return response.status === 200 || response.status === 202;
+  }
+
+  /**
+   * Get current Java output device
+   */
+  async getJavaOutputDevice(): Promise<string | null> {
+    const response = await this.request('GET', '/audio/java/output-device');
+    if (response.status !== 200) {
+      return null;
+    }
+    return response.data;
+  }
+
+  /**
+   * Set Java output device
+   * API expects: { device: "Device Name" }
+   */
+  async setJavaOutputDevice(device: string): Promise<boolean> {
+    const response = await this.request('POST', '/audio/java/output-device', { device });
+    // API returns 202 for async device changes
+    return response.status === 200 || response.status === 202;
+  }
+
+  /**
+   * Get input calibration configuration
+   */
+  async getInputCalibration(): Promise<any> {
+    const response = await this.request('GET', '/audio/input-cal');
+    if (response.status !== 200) {
+      return null;
+    }
+    return response.data;
+  }
+
+  // ============================================================
+  // SIGNAL GENERATOR METHODS
+  // ============================================================
+
+  /**
+   * Get generator status
+   */
+  async getGeneratorStatus(): Promise<{
+    enabled: boolean;
+    playing: boolean;
+    signal?: string;
+    level?: number;
+  } | null> {
+    const response = await this.request('GET', '/generator/status');
+    if (response.status !== 200) {
+      return null;
+    }
+    return response.data;
+  }
+
+  /**
+   * Get available generator signals
+   */
+  async getGeneratorSignals(): Promise<string[]> {
+    const response = await this.request('GET', '/generator/signals');
+    if (response.status !== 200) {
+      return [];
+    }
+    return Array.isArray(response.data) ? response.data : [];
+  }
+
+  /**
+   * Get current generator signal
+   */
+  async getGeneratorSignal(): Promise<string | null> {
+    const response = await this.request('GET', '/generator/signal');
+    if (response.status !== 200) {
+      return null;
+    }
+    return response.data;
+  }
+
+  /**
+   * Set generator signal
+   * API expects: { signal: "pinknoise" }
+   */
+  async setGeneratorSignal(signal: string): Promise<boolean> {
+    const response = await this.request('POST', '/generator/signal', { signal });
+    return response.status === 200;
+  }
+
+  /**
+   * Get generator level
+   */
+  async getGeneratorLevel(): Promise<{ level: number; unit: string } | null> {
+    const response = await this.request('GET', '/generator/level');
+    if (response.status !== 200) {
+      return null;
+    }
+    return response.data;
+  }
+
+  /**
+   * Set generator level
+   * API expects: { value: -18, unit: "dBFS" }
+   */
+  async setGeneratorLevel(level: number, unit?: string): Promise<boolean> {
+    const body: { value: number; unit?: string } = { value: level };
+    if (unit) body.unit = unit;
+    const response = await this.request('POST', '/generator/level', body);
+    return response.status === 200;
+  }
+
+  /**
+   * Get generator frequency (for tone signals)
+   */
+  async getGeneratorFrequency(): Promise<number | null> {
+    const response = await this.request('GET', '/generator/frequency');
+    if (response.status !== 200) {
+      return null;
+    }
+    return response.data;
+  }
+
+  /**
+   * Set generator frequency (for tone signals)
+   * API expects: { value: 1000, unit: "Hz" }
+   */
+  async setGeneratorFrequency(frequency: number): Promise<boolean> {
+    const response = await this.request('POST', '/generator/frequency', { value: frequency, unit: 'Hz' });
+    return response.status === 200;
+  }
+
+  /**
+   * Get generator commands
+   */
+  async getGeneratorCommands(): Promise<string[]> {
+    const response = await this.request('GET', '/generator/commands');
+    if (response.status !== 200) {
+      return [];
+    }
+    return Array.isArray(response.data) ? response.data : [];
+  }
+
+  /**
+   * Execute generator command (Play, Stop)
+   * API expects: { command: "Play", parameters: [] }
+   * Returns 202 for async commands
+   */
+  async executeGeneratorCommand(command: string): Promise<boolean> {
+    const response = await this.request('POST', '/generator/command', { command, parameters: [] });
+    return response.status === 200 || response.status === 202;
+  }
+
+  // ============================================================
+  // SPL METER METHODS
+  // ============================================================
+
+  /**
+   * Get SPL meter commands
+   */
+  async getSPLMeterCommands(): Promise<string[]> {
+    const response = await this.request('GET', '/spl-meter/commands');
+    if (response.status !== 200) {
+      return [];
+    }
+    return Array.isArray(response.data) ? response.data : [];
+  }
+
+  /**
+   * Execute SPL meter command (Start, Stop, Reset)
+   * API expects: { command: "Start", parameters: [] }
+   * Returns 202 for async commands
+   */
+  async executeSPLMeterCommand(meterId: number, command: string): Promise<boolean> {
+    const response = await this.request('POST', `/spl-meter/${meterId}/command`, { command, parameters: [] });
+    return response.status === 200 || response.status === 202;
+  }
+
+  /**
+   * Get SPL meter levels
+   */
+  async getSPLMeterLevels(meterId: number): Promise<{
+    spl: number;
+    leq: number;
+    sel: number;
+    weighting: string;
+    filter: string;
+  } | null> {
+    const response = await this.request('GET', `/spl-meter/${meterId}/levels`);
+    if (response.status !== 200) {
+      return null;
+    }
+    return response.data;
+  }
+
+  /**
+   * Get SPL meter configuration
+   */
+  async getSPLMeterConfig(meterId: number): Promise<any> {
+    const response = await this.request('GET', `/spl-meter/${meterId}/configuration`);
+    if (response.status !== 200) {
+      return null;
+    }
+    return response.data;
+  }
+
+  /**
+   * Set SPL meter configuration
+   */
+  async setSPLMeterConfig(meterId: number, config: {
+    mode?: string;
+    weighting?: string;
+    filter?: string;
+  }): Promise<boolean> {
+    const response = await this.request('POST', `/spl-meter/${meterId}/configuration`, config);
+    return response.status === 200;
   }
 }
 

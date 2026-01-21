@@ -20,6 +20,11 @@ import { executeApiConnect, ApiConnectInputSchema } from './api-connect.js';
 import { executeApiListMeasurements, ApiListMeasurementsInputSchema } from './api-list-measurements.js';
 import { executeApiGetMeasurement, ApiGetMeasurementInputSchema } from './api-get-measurement.js';
 import { executeTargetCompare, TargetCompareInputSchema } from './target-compare.js';
+import { executeApiMeasure, ApiMeasureInputSchema } from './api-measure.js';
+import { executeApiAudio, ApiAudioInputSchema } from './api-audio.js';
+import { executeApiGenerator, ApiGeneratorInputSchema } from './api-generator.js';
+import { executeApiSPLMeter, ApiSPLMeterInputSchema } from './api-spl-meter.js';
+import { executeApiMeasureWorkflow, ApiMeasureWorkflowInputSchema } from './api-measure-workflow.js';
 
 /**
  * Register all tools with the MCP server
@@ -100,6 +105,37 @@ export function registerTools(server: Server): void {
           title: 'Compare to Target Curve',
           description: 'Compare a measurement against a target response curve. Supports flat, REW room curve (LF rise + HF fall), Harman curve, or custom curves. Provides deviation statistics and recommendations.',
           inputSchema: zodToJsonSchema(TargetCompareInputSchema)
+        },
+        // Remote measurement tools
+        {
+          name: 'rew.api_measure',
+          title: 'Control REW Measurements',
+          description: 'Control REW measurements via API. Actions: status (get config), sweep (trigger measurement), spl (SPL measurement), cancel, configure. Note: Automated sweep measurements require REW Pro license.',
+          inputSchema: zodToJsonSchema(ApiMeasureInputSchema)
+        },
+        {
+          name: 'rew.api_audio',
+          title: 'Configure REW Audio',
+          description: 'Configure REW audio devices via API. Actions: status, list_devices, set_input, set_output, set_sample_rate. Use to select measurement mic and output device.',
+          inputSchema: zodToJsonSchema(ApiAudioInputSchema)
+        },
+        {
+          name: 'rew.api_generator',
+          title: 'Control REW Signal Generator',
+          description: 'Control REW signal generator via API. Generate test tones, pink noise, sweeps. Actions: status, start, stop, set_signal, set_level, set_frequency, list_signals.',
+          inputSchema: zodToJsonSchema(ApiGeneratorInputSchema)
+        },
+        {
+          name: 'rew.api_spl_meter',
+          title: 'Control REW SPL Meter',
+          description: 'Control REW SPL meter via API for live level monitoring. Supports A/C/Z weighting, Slow/Fast/Impulse response. Actions: start, stop, read, configure.',
+          inputSchema: zodToJsonSchema(ApiSPLMeterInputSchema)
+        },
+        {
+          name: 'rew.api_measure_workflow',
+          title: 'REW Measurement Workflow',
+          description: 'Complete measurement workflow orchestration. Actions: setup (auto-configure devices), check_levels (verify signal chain), calibrate_level (target SPL), measure (single sweep), measure_sequence (L/R or multi-position). Handles device selection, blocking mode, and result retrieval automatically. Note: Sweep measurements require REW Pro license.',
+          inputSchema: zodToJsonSchema(ApiMeasureWorkflowInputSchema)
         }
       ]
     };
@@ -159,6 +195,26 @@ export function registerTools(server: Server): void {
           
         case 'rew.compare_to_target':
           result = await executeTargetCompare(args as any);
+          break;
+          
+        case 'rew.api_measure':
+          result = await executeApiMeasure(args as any);
+          break;
+          
+        case 'rew.api_audio':
+          result = await executeApiAudio(args as any);
+          break;
+          
+        case 'rew.api_generator':
+          result = await executeApiGenerator(args as any);
+          break;
+          
+        case 'rew.api_spl_meter':
+          result = await executeApiSPLMeter(args as any);
+          break;
+          
+        case 'rew.api_measure_workflow':
+          result = await executeApiMeasureWorkflow(args as any);
           break;
           
         default:

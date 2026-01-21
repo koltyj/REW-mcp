@@ -30,6 +30,12 @@ export interface ApiConnectResult {
     blocking_mode: boolean;
   };
   error_message?: string;
+  diagnostics?: {
+    server_responding: boolean;
+    openapi_available: boolean;
+    api_version?: string;
+    tested_url: string;
+  };
 }
 
 // Store active client connection
@@ -62,7 +68,12 @@ export async function executeApiConnect(input: ApiConnectInput): Promise<ToolRes
       timeout: validated.timeout_ms
     });
 
-    // Attempt connection
+    const testedUrl = `http://${validated.host}:${validated.port}`;
+
+    // First run a health check to get diagnostics
+    const healthCheck = await activeClient.healthCheck();
+
+    // Attempt full connection
     const connectionStatus = await activeClient.connect();
 
     if (!connectionStatus.connected) {
@@ -77,7 +88,13 @@ export async function executeApiConnect(input: ApiConnectInput): Promise<ToolRes
             pro_features: false,
             blocking_mode: false
           },
-          error_message: connectionStatus.error_message || 'Failed to connect to REW API'
+          error_message: connectionStatus.error_message || 'Failed to connect to REW API',
+          diagnostics: {
+            server_responding: healthCheck.server_responding,
+            openapi_available: healthCheck.openapi_available,
+            api_version: healthCheck.api_version,
+            tested_url: testedUrl
+          }
         }
       };
     }
@@ -88,7 +105,13 @@ export async function executeApiConnect(input: ApiConnectInput): Promise<ToolRes
         status: 'connected',
         rew_version: connectionStatus.rew_version,
         measurements_available: connectionStatus.measurements_available,
-        api_capabilities: connectionStatus.api_capabilities
+        api_capabilities: connectionStatus.api_capabilities,
+        diagnostics: {
+          server_responding: true,
+          openapi_available: healthCheck.openapi_available,
+          api_version: healthCheck.api_version,
+          tested_url: testedUrl
+        }
       }
     };
 
