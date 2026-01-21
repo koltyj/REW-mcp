@@ -1134,4 +1134,148 @@ describe('REWApiClient', () => {
       expect(client.isConnected()).toBe(false);
     });
   });
+
+  describe('Input level monitoring methods', () => {
+    it('should get input level commands', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/input-levels/commands', () => {
+          return HttpResponse.json(['start', 'stop']);
+        })
+      );
+      const client = new REWApiClient();
+      const commands = await client.getInputLevelCommands();
+      expect(commands).toEqual(['start', 'stop']);
+    });
+
+    it('should return empty array when input level commands fail', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/input-levels/commands', () => {
+          return new HttpResponse(null, { status: 500 });
+        })
+      );
+      const client = new REWApiClient();
+      const commands = await client.getInputLevelCommands();
+      expect(commands).toEqual([]);
+    });
+
+    it('should start input level monitoring', async () => {
+      server.use(
+        http.post('http://127.0.0.1:4735/input-levels/command', async ({ request }) => {
+          const body = await request.json() as { command: string };
+          expect(body.command).toBe('start');
+          return HttpResponse.json({ success: true });
+        })
+      );
+      const client = new REWApiClient();
+      const result = await client.startInputLevelMonitoring();
+      expect(result).toBe(true);
+    });
+
+    it('should start input level monitoring with 202 status', async () => {
+      server.use(
+        http.post('http://127.0.0.1:4735/input-levels/command', () => {
+          return new HttpResponse(null, { status: 202 });
+        })
+      );
+      const client = new REWApiClient();
+      const result = await client.startInputLevelMonitoring();
+      expect(result).toBe(true);
+    });
+
+    it('should stop input level monitoring', async () => {
+      server.use(
+        http.post('http://127.0.0.1:4735/input-levels/command', async ({ request }) => {
+          const body = await request.json() as { command: string };
+          expect(body.command).toBe('stop');
+          return HttpResponse.json({ success: true });
+        })
+      );
+      const client = new REWApiClient();
+      const result = await client.stopInputLevelMonitoring();
+      expect(result).toBe(true);
+    });
+
+    it('should get input level units', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/input-levels/units', () => {
+          return HttpResponse.json(['dBFS', 'dBV', 'dBu']);
+        })
+      );
+      const client = new REWApiClient();
+      const units = await client.getInputLevelUnits();
+      expect(units).toEqual(['dBFS', 'dBV', 'dBu']);
+    });
+
+    it('should return empty array when input level units fail', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/input-levels/units', () => {
+          return new HttpResponse(null, { status: 500 });
+        })
+      );
+      const client = new REWApiClient();
+      const units = await client.getInputLevelUnits();
+      expect(units).toEqual([]);
+    });
+
+    it('should get input levels and transform field names', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/input-levels/last-levels', () => {
+          return HttpResponse.json({
+            unit: 'dBFS',
+            rms: [-15.2, -14.8],
+            peak: [-8.5, -9.1],
+            timeSpanSeconds: 0.5
+          });
+        })
+      );
+      const client = new REWApiClient();
+      const levels = await client.getInputLevels();
+      expect(levels).not.toBeNull();
+      expect(levels?.unit).toBe('dBFS');
+      expect(levels?.rms_levels).toEqual([-15.2, -14.8]);
+      expect(levels?.peak_levels).toEqual([-8.5, -9.1]);
+      expect(levels?.time_span_seconds).toBe(0.5);
+    });
+
+    it('should return null when monitoring not started (404)', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/input-levels/last-levels', () => {
+          return new HttpResponse(null, { status: 404 });
+        })
+      );
+      const client = new REWApiClient();
+      const levels = await client.getInputLevels();
+      expect(levels).toBeNull();
+    });
+
+    it('should return null when response validation fails', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/input-levels/last-levels', () => {
+          // Invalid response - missing required fields
+          return HttpResponse.json({ invalid: 'data' });
+        })
+      );
+      const client = new REWApiClient();
+      const levels = await client.getInputLevels();
+      expect(levels).toBeNull();
+    });
+
+    it('should pass unit parameter in query string', async () => {
+      let capturedUrl: string | undefined;
+      server.use(
+        http.get('http://127.0.0.1:4735/input-levels/last-levels', ({ request }) => {
+          capturedUrl = request.url;
+          return HttpResponse.json({
+            unit: 'dBFS',
+            rms: [-12.0],
+            peak: [-6.0],
+            timeSpanSeconds: 0.5
+          });
+        })
+      );
+      const client = new REWApiClient();
+      await client.getInputLevels('dBFS');
+      expect(capturedUrl).toContain('unit=dBFS');
+    });
+  });
 });
