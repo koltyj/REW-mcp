@@ -12,7 +12,7 @@ Transform an untested MCP server with 18 tools into a validated, intelligent aco
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Core API + MCP Validation** - Validate server works with real REW
+- [x] **Phase 1: Core API + MCP Validation** - Validate server works with real REW
 - [ ] **Phase 2: Testing Infrastructure** - Comprehensive test coverage and robustness
 - [ ] **Phase 3: Calibration Setup Tools** - Gain staging and level calibration
 - [ ] **Phase 4: Measurement Workflow + Sessions** - Systematic measurement with session state
@@ -36,10 +36,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans:** 4 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Refactor API client error handling (null returns to typed errors)
-- [ ] 01-02-PLAN.md — API client integration tests with MSW (core methods + FNDN-07)
-- [ ] 01-03-PLAN.md — MCP end-to-end integration tests (FNDN-08 analysis tools)
-- [ ] 01-04-PLAN.md — Base64 data format validation tests
+- [x] 01-01-PLAN.md — Refactor API client error handling (null returns to typed errors)
+- [x] 01-02-PLAN.md — API client integration tests with MSW (core methods + FNDN-07)
+- [x] 01-03-PLAN.md — MCP end-to-end integration tests (FNDN-08 analysis tools)
+- [x] 01-04-PLAN.md — Base64 data format validation tests
 
 **Notes:**
 - Addresses research pitfall: Silent API failures (highest risk)
@@ -191,7 +191,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Core API + MCP Validation | 0/4 | Ready for execution | - |
+| 1. Core API + MCP Validation | 4/4 | Complete | 2026-01-21 |
 | 2. Testing Infrastructure | 0/TBD | Not started | - |
 | 3. Calibration Setup Tools | 0/TBD | Not started | - |
 | 4. Measurement Workflow + Sessions | 0/TBD | Not started | - |
@@ -202,4 +202,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 
 ---
 *Created: 2026-01-21*
-*Last updated: 2026-01-21*
+*Last updated: 2026-01-21 (Phase 1 complete)*
