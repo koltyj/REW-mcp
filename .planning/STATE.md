@@ -12,7 +12,7 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 Phase: 3 of 8 (Calibration & Setup Tools) — In progress
 Plan: 3 of 7 in current phase
 Status: In progress
-Last activity: 2026-01-21 — Completed 03-03-PLAN.md
+Last activity: 2026-01-21 — Completed 03-02-PLAN.md
 
 Progress: [██████████] 100% (Phase 1: 4/4 plans)
 Progress: [██████████] 100% (Phase 2: 5/5 plans)
@@ -21,9 +21,9 @@ Progress: [████░░░░░░] 43% (Phase 3: 3/7 plans)
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 11
-- Average duration: 5.5 min
-- Total execution time: 1.0 hours
+- Total plans completed: 12
+- Average duration: 5.3 min
+- Total execution time: 1.1 hours
 
 **By Phase:**
 
@@ -31,11 +31,11 @@ Progress: [████░░░░░░] 43% (Phase 3: 3/7 plans)
 |-------|-------|-------|----------|
 | 1 (Core API + MCP Validation) | 4 | 25 min | 6.25 min |
 | 2 (Testing Infrastructure) | 5 | 33 min | 6.6 min |
-| 3 (Calibration & Setup Tools) | 3 | 4 min | 1.3 min |
+| 3 (Calibration & Setup Tools) | 3 | 6 min | 2.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 4m (02-04), 8m (02-05), 1m (03-01), 1m (03-02), 2m (03-03)
-- Trend: Calibration tools extremely fast (simple composition of existing APIs)
+- Last 5 plans: 8m (02-05), 1m (03-01), 3m (03-02), 2m (03-03)
+- Trend: Calibration tools faster than testing (simple composition of existing APIs)
 
 *Updated after each plan completion*
 
@@ -81,6 +81,10 @@ Recent decisions affecting current work:
 - **03-01:** Return null from getInputLevels on validation failure for graceful degradation
 - **03-01:** Transform API response field names (rms -> rms_levels) for internal consistency
 - **03-01:** Accept both 200 and 202 status codes for async REW API commands
+- **03-02:** Zone-based classification prioritizes clipping detection first (peak > -3 dBFS before RMS checks)
+- **03-02:** Block measurements for clipping and very low zones (safety + quality)
+- **03-02:** Default target -12 dBFS RMS for measurement level checking
+- **03-02:** L/R channel imbalance threshold 3 dB (industry standard for balanced stereo)
 - **03-03:** Use start/check/stop pattern for semi-automated workflows requiring user interaction
 - **03-03:** Include stabilization delays (2s for generator, 1s for SPL meter) for accurate readings
 - **03-03:** Generate user-friendly guidance messages with specific dB adjustment recommendations
@@ -107,5 +111,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-21 23:33 UTC
-Stopped at: Completed 03-03-PLAN.md
+Stopped at: Completed 03-02-PLAN.md
 Resume file: None
