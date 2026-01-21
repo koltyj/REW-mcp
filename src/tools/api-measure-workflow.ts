@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { getActiveApiClient } from './api-connect.js';
 import { REWApiError } from '../api/rew-api-error.js';
 import type { ToolResponse } from '../types/index.js';
+import { type REWClientLike, type SweepConfig } from '../api/schemas.js';
 
 // Input schema for workflow
 export const ApiMeasureWorkflowInputSchema = z.object({
@@ -198,7 +199,7 @@ export async function executeApiMeasureWorkflow(
 /**
  * Get current workflow status
  */
-async function getWorkflowStatus(client: any): Promise<ToolResponse<ApiMeasureWorkflowResult>> {
+async function getWorkflowStatus(client: REWClientLike): Promise<ToolResponse<ApiMeasureWorkflowResult>> {
   const [
     measurements,
     blocking,
@@ -217,6 +218,9 @@ async function getWorkflowStatus(client: any): Promise<ToolResponse<ApiMeasureWo
     client.getInputCalibration()
   ]);
 
+  const levelData = level as { level?: number; value?: number; unit?: string } | undefined;
+  const calData = inputCal as { calDataAllInputs?: { calFilePath?: string; dBFSAt94dBSPL?: number } } | null | undefined;
+
   const status: WorkflowStatus = {
     connected: true,
     audio_ready: !!(inputDevice && outputDevice),
@@ -224,19 +228,19 @@ async function getWorkflowStatus(client: any): Promise<ToolResponse<ApiMeasureWo
     output_device: outputDevice || undefined,
     sample_rate: sampleRate || undefined,
     blocking_mode: blocking,
-    current_level_dbfs: level?.value,
+    current_level_dbfs: levelData?.value ?? levelData?.level,
     measurement_count: measurements?.length || 0,
     pro_features: false, // Will be detected on first measure attempt
-    mic_calibrated: !!(inputCal?.calDataAllInputs?.calFilePath),
-    cal_sensitivity_db: inputCal?.calDataAllInputs?.dBFSAt94dBSPL
+    mic_calibrated: !!(calData?.calDataAllInputs?.calFilePath),
+    cal_sensitivity_db: calData?.calDataAllInputs?.dBFSAt94dBSPL
   };
 
   const warnings: string[] = [];
-  
+
   if (!status.audio_ready) {
     warnings.push('Audio devices not configured');
   }
-  if (!status.mic_calibrated && inputCal?.calDataAllInputs?.calFilePath === '') {
+  if (!status.mic_calibrated && calData?.calDataAllInputs?.calFilePath === '') {
     warnings.push('No microphone calibration file loaded - measurements may be inaccurate');
   }
   if (!status.blocking_mode) {
@@ -261,7 +265,7 @@ async function getWorkflowStatus(client: any): Promise<ToolResponse<ApiMeasureWo
  * Setup workflow - configure devices
  */
 async function setupWorkflow(
-  client: any, 
+  client: REWClientLike, 
   options?: ApiMeasureWorkflowInput['setup']
 ): Promise<ToolResponse<ApiMeasureWorkflowResult>> {
   const warnings: string[] = [];
@@ -336,7 +340,7 @@ async function setupWorkflow(
  * Check input/output levels
  */
 async function checkLevels(
-  client: any,
+  client: REWClientLike,
   options?: ApiMeasureWorkflowInput['measurement']
 ): Promise<ToolResponse<ApiMeasureWorkflowResult>> {
   // Start generator with pink noise for level check
@@ -345,11 +349,11 @@ async function checkLevels(
   await client.setGeneratorLevel(level, 'dBFS');
   
   // Run "Check levels" command
-  const result = await client.executeMeasureCommand('Check levels');
-  
+  const result = await client.executeMeasureCommand('Check levels') as { success: boolean; status: number };
+
   const clipping = level > -3;
   const tooLow = level < -30;
-  
+
   let recommendation: string | undefined;
   if (clipping) {
     recommendation = 'Level too high - risk of clipping. Reduce by 6-10 dB.';
@@ -384,7 +388,7 @@ async function checkLevels(
  * Auto-calibrate to target SPL
  */
 async function calibrateLevel(
-  client: any,
+  client: REWClientLike,
   options?: ApiMeasureWorkflowInput['measurement']
 ): Promise<ToolResponse<ApiMeasureWorkflowResult>> {
   const targetSPL = options?.target_spl_db || 75;
@@ -401,11 +405,11 @@ async function calibrateLevel(
   await new Promise(resolve => setTimeout(resolve, 1000));
 
   // Try to read SPL meter
-  const splLevels = await client.getSPLMeterLevels(1);
-  
+  const splLevels = await client.getSPLMeterLevels(1) as { spl?: number; leq?: number; sel?: number } | undefined;
+
   let recommendation: string;
-  
-  if (splLevels && splLevels.spl) {
+
+  if (splLevels && splLevels.spl !== undefined) {
     const currentSPL = splLevels.spl;
     const adjustment = targetSPL - currentSPL;
     const newLevel = Math.max(-60, Math.min(0, currentLevel + adjustment));
@@ -445,7 +449,7 @@ async function calibrateLevel(
  * Execute a single measurement
  */
 async function executeMeasurement(
-  client: any,
+  client: REWClientLike,
   options?: ApiMeasureWorkflowInput['measurement']
 ): Promise<ToolResponse<ApiMeasureWorkflowResult>> {
   // Get current measurement count to detect new measurement
@@ -458,7 +462,7 @@ async function executeMeasurement(
   }
 
   // Set sweep config
-  const sweepConfig: any = {};
+  const sweepConfig: SweepConfig = {};
   if (options?.start_freq_hz) sweepConfig.startFreq = options.start_freq_hz;
   if (options?.end_freq_hz) sweepConfig.endFreq = options.end_freq_hz;
   if (Object.keys(sweepConfig).length > 0) {
@@ -475,7 +479,7 @@ async function executeMeasurement(
 
   // Execute measurement
   const startTime = Date.now();
-  const result = await client.executeMeasureCommand('Measure');
+  const result = await client.executeMeasureCommand('Measure') as { success: boolean; status: number; data?: unknown };
   const duration = Date.now() - startTime;
 
   // Check for Pro license requirement
@@ -516,7 +520,7 @@ async function executeMeasurement(
 
   if (afterCount > beforeCount) {
     // Find the new measurement (last one added)
-    const newMeasurement = afterMeasurements[afterCount - 1];
+    const newMeasurement = afterMeasurements[afterCount - 1] as { uuid?: string; title?: string; name?: string };
 
     return {
       status: 'success',
@@ -526,8 +530,8 @@ async function executeMeasurement(
         message: `Measurement completed in ${duration}ms`,
         measurements: [{
           success: true,
-          uuid: newMeasurement.uuid,
-          name: newMeasurement.title || options?.name,
+          uuid: newMeasurement?.uuid,
+          name: newMeasurement?.title || newMeasurement?.name || options?.name,
           duration_ms: duration
         }]
       }
@@ -553,7 +557,7 @@ async function executeMeasurement(
  * Execute a sequence of measurements
  */
 async function executeMeasurementSequence(
-  client: any,
+  client: REWClientLike,
   measurementOptions?: ApiMeasureWorkflowInput['measurement'],
   sequenceOptions?: ApiMeasureWorkflowInput['sequence']
 ): Promise<ToolResponse<ApiMeasureWorkflowResult>> {
@@ -587,7 +591,7 @@ async function executeMeasurementSequence(
 
     // Execute
     const startTime = Date.now();
-    const result = await client.executeMeasureCommand('Measure');
+    const result = await client.executeMeasureCommand('Measure') as { success: boolean; status: number };
     const duration = Date.now() - startTime;
 
     if (!result.success) {
@@ -613,8 +617,8 @@ async function executeMeasurementSequence(
     // Get the new measurement UUID
     const afterMeasurements = await client.listMeasurements();
     const afterCount = afterMeasurements?.length || 0;
-    
-    const newMeas = afterCount > beforeCount ? afterMeasurements[afterCount - 1] : null;
+
+    const newMeas = afterCount > beforeCount ? (afterMeasurements[afterCount - 1] as { uuid?: string }) : null;
 
     results.push({
       success: true,

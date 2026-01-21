@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { getActiveApiClient } from './api-connect.js';
 import { REWApiError } from '../api/rew-api-error.js';
 import type { ToolResponse } from '../types/index.js';
+import { type InputCalibration } from '../api/schemas.js';
 
 // Input schema
 export const ApiAudioInputSchema = z.object({
@@ -40,7 +41,7 @@ export interface ApiAudioResult {
     output_devices: string[];
     sample_rates: number[];
   };
-  input_calibration?: any;
+  input_calibration?: InputCalibration | null;
 }
 
 /**

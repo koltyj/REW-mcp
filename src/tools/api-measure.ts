@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { getActiveApiClient } from './api-connect.js';
 import { REWApiError } from '../api/rew-api-error.js';
 import type { ToolResponse } from '../types/index.js';
+import { type SweepConfig } from '../api/schemas.js';
 
 // Input schema for measure commands
 export const ApiMeasureInputSchema = z.object({
@@ -115,11 +116,11 @@ export async function executeApiMeasure(input: ApiMeasureInput): Promise<ToolRes
 
         // Set sweep config if any freq params provided
         if (config.start_freq_hz !== undefined || config.end_freq_hz !== undefined || config.sweep_length !== undefined) {
-          const sweepConfig: any = {};
+          const sweepConfig: SweepConfig = {};
           if (config.start_freq_hz !== undefined) sweepConfig.startFreq = config.start_freq_hz;
           if (config.end_freq_hz !== undefined) sweepConfig.endFreq = config.end_freq_hz;
           if (config.sweep_length !== undefined) sweepConfig.length = config.sweep_length;
-          
+
           const sweepSet = await client.setSweepConfig(sweepConfig);
           results.push(`Sweep config: ${sweepSet ? 'set' : 'failed'}`);
         }

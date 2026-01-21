@@ -111,7 +111,10 @@ export async function executeGLMInterpret(input: GLMInterpretInput): Promise<Too
  * Interpret a single measurement from GLM perspective
  */
 function interpretSingleMeasurement(
-  measurement: any,
+  measurement: {
+    quick_stats: { variance_20_200hz_db: number };
+    data_quality: { confidence: ConfidenceLevel };
+  },
   glmVersion: 'glm3' | 'glm4' | 'unknown'
 ): GLMInterpretResult {
   // This is a simplified implementation
