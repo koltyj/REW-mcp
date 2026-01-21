@@ -9,31 +9,31 @@
 
 Server must actually work with REW before building calibration features.
 
-- [ ] **FNDN-01**: MCP server starts and registers all declared tools
-- [ ] **FNDN-02**: MCP server does not declare unused capabilities (resources, prompts)
-- [ ] **FNDN-03**: REW API connection succeeds when REW is running with -api flag
-- [ ] **FNDN-04**: REW API connection failure returns typed error (not null/silent)
-- [ ] **FNDN-05**: Measurement listing returns actual data from REW instance
-- [ ] **FNDN-06**: Single measurement retrieval returns frequency response data
-- [ ] **FNDN-07**: Single measurement retrieval returns impulse response data
-- [ ] **FNDN-08**: Analysis tools produce valid output with real REW data
-- [ ] **FNDN-09**: API errors propagate as structured errors (not silent nulls)
-- [ ] **FNDN-10**: Integration test suite exists using MSW for HTTP mocking
-- [ ] **FNDN-11**: Integration test suite exists using InMemoryTransport for MCP
-- [ ] **FNDN-12**: Parser handles European decimal format (comma separator)
-- [ ] **FNDN-13**: No explicit `any` types in tool handlers
-- [ ] **FNDN-14**: Zod validation on all REW API responses
+- [x] **FNDN-01**: MCP server starts and registers all declared tools
+- [x] **FNDN-02**: MCP server does not declare unused capabilities (resources, prompts)
+- [x] **FNDN-03**: REW API connection succeeds when REW is running with -api flag
+- [x] **FNDN-04**: REW API connection failure returns typed error (not null/silent)
+- [x] **FNDN-05**: Measurement listing returns actual data from REW instance
+- [x] **FNDN-06**: Single measurement retrieval returns frequency response data
+- [x] **FNDN-07**: Single measurement retrieval returns impulse response data
+- [x] **FNDN-08**: Analysis tools produce valid output with real REW data
+- [x] **FNDN-09**: API errors propagate as structured errors (not silent nulls)
+- [x] **FNDN-10**: Integration test suite exists using MSW for HTTP mocking
+- [x] **FNDN-11**: Integration test suite exists using InMemoryTransport for MCP
+- [x] **FNDN-12**: Parser handles European decimal format (comma separator)
+- [x] **FNDN-13**: No explicit `any` types in tool handlers
+- [x] **FNDN-14**: Zod validation on all REW API responses
 
 ### Calibration Setup (Milestone 2)
 
 Guided mic and monitor setup before measurement.
 
-- [ ] **SETV-01**: Check REW input level (RMS and peak dBFS)
-- [ ] **SETV-02**: Detect input clipping condition (> -3 dBFS peak)
-- [ ] **SETV-03**: Detect low signal condition (< -40 dBFS RMS)
-- [ ] **SETV-04**: Provide mic gain adjustment guidance based on level
-- [ ] **SETV-05**: Target monitor level calibration (79-85 dB SPL)
-- [ ] **SETV-06**: Verify target SPL achieved within tolerance
+- [x] **SETV-01**: Check REW input level (RMS and peak dBFS)
+- [x] **SETV-02**: Detect input clipping condition (> -3 dBFS peak)
+- [x] **SETV-03**: Detect low signal condition (< -40 dBFS RMS)
+- [x] **SETV-04**: Provide mic gain adjustment guidance based on level
+- [x] **SETV-05**: Target monitor level calibration (79-85 dB SPL)
+- [x] **SETV-06**: Verify target SPL achieved within tolerance
 
 ### Measurement Workflow (Milestone 2)
 
