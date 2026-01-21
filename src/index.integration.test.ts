@@ -113,4 +113,89 @@ describe('MCP Server Integration', () => {
       // This is verified by code inspection, not runtime check
     });
   });
+
+  describe('Error Propagation', () => {
+    it('should set isError: false when API connection fails gracefully', async () => {
+      // Connection failure is handled as successful tool execution with error status in data
+      mswServer.use(
+        http.get('http://127.0.0.1:4735/doc.json', () => {
+          return HttpResponse.error();  // Network error
+        })
+      );
+
+      const response = await mcpClient.callTool({
+        name: 'rew.api_connect',
+        arguments: {}
+      });
+
+      // Tool executed successfully, but connection failed
+      expect(response.isError).toBe(false);
+      expect(response.content).toHaveLength(1);
+      expect(response.content[0].type).toBe('text');
+
+      const result = JSON.parse(response.content[0].text as string);
+      expect(result.status).toBe('error');
+      expect(result.error_message).toBeDefined();
+    });
+
+    it('should set isError: true when tool receives invalid input', async () => {
+      const response = await mcpClient.callTool({
+        name: 'rew.analyze_room_modes',
+        arguments: {
+          measurement_id: ''  // Empty ID should fail validation
+        }
+      });
+
+      expect(response.isError).toBe(true);
+      const result = JSON.parse(response.content[0].text as string);
+      expect(result.status).toBe('error');
+    });
+
+    it('should set isError: true for unknown tool', async () => {
+      // Unknown tools are caught by the error handler and return isError: true
+      const response = await mcpClient.callTool({
+        name: 'rew.nonexistent_tool',
+        arguments: {}
+      });
+
+      expect(response.isError).toBe(true);
+      const result = JSON.parse(response.content[0].text as string);
+      expect(result.status).toBe('error');
+      expect(result.error_type).toBe('internal_error');
+      expect(result.message).toContain('Unknown tool');
+    });
+
+    it('should set isError: false when tool succeeds', async () => {
+      // Mock successful REW API connection
+      mswServer.use(
+        http.get('http://127.0.0.1:4735/doc.json', () => {
+          return HttpResponse.json({
+            info: { version: '5.30.9' },
+            openapi: '3.0.0'
+          });
+        }),
+        http.get('http://127.0.0.1:4735/measurements', () => {
+          return HttpResponse.json([]);
+        }),
+        http.get('http://127.0.0.1:4735/application', () => {
+          return new HttpResponse(null, { status: 404 });
+        }),
+        http.get('http://127.0.0.1:4735/application/blocking', () => {
+          return new HttpResponse(null, { status: 404 });
+        })
+      );
+
+      const response = await mcpClient.callTool({
+        name: 'rew.api_connect',
+        arguments: {}
+      });
+
+      expect(response.isError).toBe(false);
+      expect(response.content).toHaveLength(1);
+
+      const result = JSON.parse(response.content[0].text as string);
+      expect(result.status).toBe('connected');
+      expect(result.measurements_available).toBe(0);
+    });
+  });
 });
