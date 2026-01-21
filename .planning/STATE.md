@@ -5,24 +5,25 @@
 See: .planning/PROJECT.md (updated 2026-01-21)
 
 **Core value:** Claude can autonomously measure, interpret, and guide fixes for room acoustics — turning raw frequency response data into actionable placement and treatment recommendations.
-**Current focus:** Phase 2 - Testing Infrastructure
+**Current focus:** Phase 3 - Calibration & Setup Tools
 
 ## Current Position
 
-Phase: 2 of 8 (Testing Infrastructure) — Complete
-Plan: 5 of 5 in current phase
-Status: Phase complete
-Last activity: 2026-01-21 — Completed 02-05-PLAN.md
+Phase: 3 of 8 (Calibration & Setup Tools) — In progress
+Plan: 1 of 7 in current phase
+Status: In progress
+Last activity: 2026-01-21 — Completed 03-01-PLAN.md
 
 Progress: [██████████] 100% (Phase 1: 4/4 plans)
 Progress: [██████████] 100% (Phase 2: 5/5 plans)
+Progress: [██░░░░░░░░] 14% (Phase 3: 1/7 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
-- Average duration: 6.0 min
-- Total execution time: 0.9 hours
+- Total plans completed: 10
+- Average duration: 5.9 min
+- Total execution time: 1.0 hours
 
 **By Phase:**
 
@@ -30,10 +31,11 @@ Progress: [██████████] 100% (Phase 2: 5/5 plans)
 |-------|-------|-------|----------|
 | 1 (Core API + MCP Validation) | 4 | 25 min | 6.25 min |
 | 2 (Testing Infrastructure) | 5 | 33 min | 6.6 min |
+| 3 (Calibration & Setup Tools) | 1 | 1 min | 1.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 7m (02-02), 12m (02-03), 4m (02-04), 8m (02-05)
-- Trend: Stable around 6-8min for gap closure plans
+- Last 5 plans: 12m (02-03), 4m (02-04), 8m (02-05), 1m (03-01)
+- Trend: API extension plans faster than test infrastructure plans
 
 *Updated after each plan completion*
 
@@ -76,6 +78,9 @@ Recent decisions affecting current work:
 - **02-05:** Use vi.useFakeTimers for testing setTimeout operations (calibrate_level, measure_sequence)
 - **02-05:** Test Pro license detection via both 403 status and 'pro' keyword in response data
 - **02-05:** Test workflow helpers with realistic device detection keywords (umik, earthworks, dayton, minidsp)
+- **03-01:** Return null from getInputLevels on validation failure for graceful degradation
+- **03-01:** Transform API response field names (rms -> rms_levels) for internal consistency
+- **03-01:** Accept both 200 and 202 status codes for async REW API commands
 
 ### Pending Todos
 
@@ -98,5 +103,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-21 22:55 UTC
-Stopped at: Completed 02-05-PLAN.md (Phase 2 complete)
-Resume file: None (phase complete)
+Stopped at: Completed 03-01-PLAN.md
+Resume file: None
