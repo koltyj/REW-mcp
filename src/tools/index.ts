@@ -25,6 +25,7 @@ import { executeApiAudio, ApiAudioInputSchema } from './api-audio.js';
 import { executeApiGenerator, ApiGeneratorInputSchema } from './api-generator.js';
 import { executeApiSPLMeter, ApiSPLMeterInputSchema } from './api-spl-meter.js';
 import { executeApiMeasureWorkflow, ApiMeasureWorkflowInputSchema } from './api-measure-workflow.js';
+import { executeApiCalibrateSPL, ApiCalibrateSPLInputSchema } from './api-calibrate-spl.js';
 
 /**
  * Register all tools with the MCP server
@@ -136,6 +137,12 @@ export function registerTools(server: Server): void {
           title: 'REW Measurement Workflow',
           description: 'Complete measurement workflow orchestration. Actions: setup (auto-configure devices), check_levels (verify signal chain), calibrate_level (target SPL), measure (single sweep), measure_sequence (L/R or multi-position). Handles device selection, blocking mode, and result retrieval automatically. Note: Sweep measurements require REW Pro license.',
           inputSchema: zodToJsonSchema(ApiMeasureWorkflowInputSchema)
+        },
+        {
+          name: 'rew.api_calibrate_spl',
+          title: 'Calibrate Monitor SPL',
+          description: 'Semi-automated monitor level calibration workflow. Actions: start (play pink noise + start SPL meter), check (read current SPL + get adjustment guidance), stop (end calibration). Guides user to target SPL (default: 85 dB broadcast reference) with configurable tolerance.',
+          inputSchema: zodToJsonSchema(ApiCalibrateSPLInputSchema)
         }
       ]
     };
@@ -216,7 +223,11 @@ export function registerTools(server: Server): void {
         case 'rew.api_measure_workflow':
           result = await executeApiMeasureWorkflow(args as any);
           break;
-          
+
+        case 'rew.api_calibrate_spl':
+          result = await executeApiCalibrateSPL(args as any);
+          break;
+
         default:
           // Per MCP spec: Protocol errors (unknown tool) should throw Error
           // to be handled as JSON-RPC error, not tool execution error
