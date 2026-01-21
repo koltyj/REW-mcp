@@ -13,7 +13,7 @@ Transform an untested MCP server with 18 tools into a validated, intelligent aco
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Core API + MCP Validation** - Validate server works with real REW
-- [ ] **Phase 2: Testing Infrastructure** - Comprehensive test coverage and robustness
+- [x] **Phase 2: Testing Infrastructure** - Comprehensive test coverage and robustness
 - [ ] **Phase 3: Calibration Setup Tools** - Gain staging and level calibration
 - [ ] **Phase 4: Measurement Workflow + Sessions** - Systematic measurement with session state
 - [ ] **Phase 5: Analysis & Interpretation** - Plain language room analysis
@@ -62,8 +62,8 @@ Plans:
 - [x] 02-01-PLAN.md — Configure coverage thresholds and European decimal tests
 - [x] 02-02-PLAN.md — Replace any types with Zod schemas (FNDN-13, FNDN-14)
 - [x] 02-03-PLAN.md — Extend test coverage to 80%/70% targets
-- [ ] 02-04-PLAN.md — [GAP CLOSURE] Unit tests for api-audio and api-generator tools
-- [ ] 02-05-PLAN.md — [GAP CLOSURE] Unit tests for api-measure, api-spl-meter, api-measure-workflow tools
+- [x] 02-04-PLAN.md — [GAP CLOSURE] Unit tests for api-audio and api-generator tools
+- [x] 02-05-PLAN.md — [GAP CLOSURE] Unit tests for api-measure, api-spl-meter, api-measure-workflow tools
 
 **Notes:**
 - Addresses research pitfall: Type erasure via `any` types
@@ -197,7 +197,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Core API + MCP Validation | 4/4 | Complete | 2026-01-21 |
-| 2. Testing Infrastructure | 3/5 | Gap closure | - |
+| 2. Testing Infrastructure | 5/5 | Complete | 2026-01-21 |
 | 3. Calibration Setup Tools | 0/TBD | Not started | - |
 | 4. Measurement Workflow + Sessions | 0/TBD | Not started | - |
 | 5. Analysis & Interpretation | 0/TBD | Not started | - |
@@ -207,4 +207,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 
 ---
 *Created: 2026-01-21*
-*Last updated: 2026-01-21 (Phase 2 gap closure plans added)*
+*Last updated: 2026-01-21 (Phase 2 complete)*

@@ -138,20 +138,20 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FNDN-01 | Phase 1 | Pending |
-| FNDN-02 | Phase 1 | Pending |
-| FNDN-03 | Phase 1 | Pending |
-| FNDN-04 | Phase 1 | Pending |
-| FNDN-05 | Phase 1 | Pending |
-| FNDN-06 | Phase 1 | Pending |
-| FNDN-07 | Phase 1 | Pending |
-| FNDN-08 | Phase 1 | Pending |
-| FNDN-09 | Phase 1 | Pending |
-| FNDN-10 | Phase 2 | Pending |
-| FNDN-11 | Phase 2 | Pending |
-| FNDN-12 | Phase 2 | Pending |
-| FNDN-13 | Phase 2 | Pending |
-| FNDN-14 | Phase 2 | Pending |
+| FNDN-01 | Phase 1 | Complete |
+| FNDN-02 | Phase 1 | Complete |
+| FNDN-03 | Phase 1 | Complete |
+| FNDN-04 | Phase 1 | Complete |
+| FNDN-05 | Phase 1 | Complete |
+| FNDN-06 | Phase 1 | Complete |
+| FNDN-07 | Phase 1 | Complete |
+| FNDN-08 | Phase 1 | Complete |
+| FNDN-09 | Phase 1 | Complete |
+| FNDN-10 | Phase 2 | Complete |
+| FNDN-11 | Phase 2 | Complete |
+| FNDN-12 | Phase 2 | Complete |
+| FNDN-13 | Phase 2 | Complete |
+| FNDN-14 | Phase 2 | Complete |
 | SETV-01 | Phase 3 | Pending |
 | SETV-02 | Phase 3 | Pending |
 | SETV-03 | Phase 3 | Pending |
