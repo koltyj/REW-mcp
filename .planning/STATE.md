@@ -10,27 +10,27 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 1 of 8 (Core API + MCP Validation)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-01-21 — Completed 01-01-PLAN.md (API Error Handling Refactor)
+Last activity: 2026-01-21 — Completed 01-02-PLAN.md (API Client Integration Tests)
 
-Progress: [█░░░░░░░░░] 12.5%
+Progress: [██░░░░░░░░] 25%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
-- Average duration: 7 min
-- Total execution time: 0.1 hours
+- Total plans completed: 2
+- Average duration: 5.5 min
+- Total execution time: 0.2 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1 (Core API + MCP Validation) | 1 | 7 min | 7 min |
+| 1 (Core API + MCP Validation) | 2 | 11 min | 5.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 7m
+- Last 5 plans: 7m, 4m
 - Trend: Not yet established (need 3+ data points)
 
 *Updated after each plan completion*
@@ -49,6 +49,9 @@ Recent decisions affecting current work:
 - **01-01:** Use throw-based error handling instead of null returns for type safety
 - **01-01:** Discriminated error codes allow tools to provide context-specific suggestions
 - **01-01:** Centralized handleResponseError method ensures consistent error mapping
+- **01-02:** Use MSW for HTTP-level mocking instead of function mocks for realistic API testing
+- **01-02:** Test error propagation via REWApiError with discriminated codes
+- **01-02:** Use encodeREWFloatArray helper for big-endian float encoding in test fixtures
 
 ### Pending Todos
 
@@ -58,8 +61,8 @@ None yet.
 
 **Phase 1-2 (Foundation):**
 - ~~Silent API failures are highest-risk pitfall~~ (RESOLVED in 01-01: typed error handling implemented)
+- ~~Zero integration tests in current codebase~~ (RESOLVED in 01-02: API client tests with MSW)
 - MCP specification violation from unused capabilities (audit finding)
-- Zero integration tests in current codebase (research finding - addressed in 01-02)
 
 **Phase 4 (Measurement Workflow):**
 - Research flag: REW API measurement triggering capability unverified
@@ -70,6 +73,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-21 20:58 UTC
-Stopped at: Completed 01-01-PLAN.md execution (API Error Handling Refactor)
-Resume file: .planning/phases/01-core-api-mcp-validation/01-02-PLAN.md (next plan)
+Last session: 2026-01-21 21:03 UTC
+Stopped at: Completed 01-02-PLAN.md execution (API Client Integration Tests)
+Resume file: .planning/phases/01-core-api-mcp-validation/01-03-PLAN.md (next plan)
