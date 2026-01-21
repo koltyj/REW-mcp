@@ -266,6 +266,185 @@ describe('REWApiClient', () => {
     });
   });
 
+  describe('Audio device methods', () => {
+    it('should get audio driver', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/audio/driver', () => {
+          return HttpResponse.json('CoreAudio');
+        })
+      );
+      const client = new REWApiClient();
+      const driver = await client.getAudioDriver();
+      expect(driver).toBe('CoreAudio');
+    });
+
+    it('should get Java input devices', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/audio/java/input-devices', () => {
+          return HttpResponse.json(['Device 1', 'Device 2']);
+        })
+      );
+      const client = new REWApiClient();
+      const devices = await client.getJavaInputDevices();
+      expect(devices).toEqual(['Device 1', 'Device 2']);
+    });
+
+    it('should get Java output devices', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/audio/java/output-devices', () => {
+          return HttpResponse.json(['Output 1', 'Output 2']);
+        })
+      );
+      const client = new REWApiClient();
+      const devices = await client.getJavaOutputDevices();
+      expect(devices).toEqual(['Output 1', 'Output 2']);
+    });
+
+    it('should set Java input device', async () => {
+      server.use(
+        http.post('http://127.0.0.1:4735/audio/java/input-device', () => {
+          return HttpResponse.json({ status: 200 });
+        })
+      );
+      const client = new REWApiClient();
+      const result = await client.setJavaInputDevice('Device 1');
+      expect(result).toBe(true);
+    });
+
+    it('should set Java output device', async () => {
+      server.use(
+        http.post('http://127.0.0.1:4735/audio/java/output-device', () => {
+          return HttpResponse.json({ status: 200 });
+        })
+      );
+      const client = new REWApiClient();
+      const result = await client.setJavaOutputDevice('Output 1');
+      expect(result).toBe(true);
+    });
+  });
+
+  describe('Sample rate methods', () => {
+    it('should get sample rate', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/audio/samplerate', () => {
+          return HttpResponse.json(48000);
+        })
+      );
+      const client = new REWApiClient();
+      const rate = await client.getSampleRate();
+      expect(rate).toBe(48000);
+    });
+
+    it('should set sample rate', async () => {
+      server.use(
+        http.post('http://127.0.0.1:4735/audio/samplerate', () => {
+          return HttpResponse.json({ status: 200 });
+        })
+      );
+      const client = new REWApiClient();
+      const result = await client.setSampleRate(96000);
+      expect(result).toBe(true);
+    });
+
+    it('should list available sample rates', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/audio/samplerates', () => {
+          return HttpResponse.json([44100, 48000, 96000]);
+        })
+      );
+      const client = new REWApiClient();
+      const rates = await client.getAvailableSampleRates();
+      expect(rates).toEqual([44100, 48000, 96000]);
+    });
+  });
+
+  describe('Measurement data retrieval', () => {
+    it('should get waterfall data', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/measurements/test-uuid/waterfall', () => {
+          const freqBase64 = encodeREWFloatArray([20, 50, 100]);
+          const magSlice1 = encodeREWFloatArray([80, 75, 70]);
+          const magSlice2 = encodeREWFloatArray([78, 73, 68]);
+          const magSlice3 = encodeREWFloatArray([76, 71, 66]);
+          return HttpResponse.json({
+            frequencies: freqBase64,
+            timeSlices: [0, 100, 200],
+            magnitude: [magSlice1, magSlice2, magSlice3]
+          });
+        })
+      );
+      const client = new REWApiClient();
+      const waterfall = await client.getWaterfallData('test-uuid');
+      expect(waterfall.frequencies_hz).toEqual([20, 50, 100]);
+      expect(waterfall.time_slices_ms).toEqual([0, 100, 200]);
+      expect(waterfall.magnitude_db).toHaveLength(3);
+      expect(waterfall.magnitude_db[0]).toHaveLength(3);
+    });
+
+    it('should get RT60 data', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/measurements/test-uuid/rt60', () => {
+          return HttpResponse.json({
+            frequencies: encodeREWFloatArray([125, 250, 500]),
+            t20: encodeREWFloatArray([0.3, 0.25, 0.2]),
+            t30: encodeREWFloatArray([0.35, 0.28, 0.22]),
+            edt: encodeREWFloatArray([0.32, 0.26, 0.21])
+          });
+        })
+      );
+      const client = new REWApiClient();
+      const rt60 = await client.getRT60('test-uuid');
+      expect(rt60.frequencies_hz).toHaveLength(3);
+      // Use toBeCloseTo for floating-point values
+      expect(rt60.t30_seconds[0]).toBeCloseTo(0.35, 2);
+      expect(rt60.t30_seconds[1]).toBeCloseTo(0.28, 2);
+      expect(rt60.t30_seconds[2]).toBeCloseTo(0.22, 2);
+      expect(rt60.t20_seconds[0]).toBeCloseTo(0.3, 2);
+      expect(rt60.edt_seconds[0]).toBeCloseTo(0.32, 2);
+    });
+  });
+
+  describe('Error handling edge cases', () => {
+    it('should handle timeout', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/doc.json', async () => {
+          await new Promise(resolve => setTimeout(resolve, 15000));
+          return HttpResponse.json({});
+        })
+      );
+      const client = new REWApiClient();
+      const status = await client.connect();
+      expect(status.connected).toBe(false);
+      expect(status.error_message).toBeDefined();
+    }, 12000); // Set test timeout to 12 seconds
+
+    it('should handle malformed JSON response gracefully', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/measurements', () => {
+          return new HttpResponse('not json', {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        })
+      );
+      const client = new REWApiClient();
+      // Client handles JSON parse errors by returning empty array (graceful degradation)
+      const measurements = await client.listMeasurements();
+      expect(measurements).toEqual([]);
+    });
+
+    it('should handle empty measurement list gracefully', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/measurements', () => {
+          return HttpResponse.json([]);
+        })
+      );
+      const client = new REWApiClient();
+      const measurements = await client.listMeasurements();
+      expect(measurements).toEqual([]);
+    });
+  });
+
   describe('getFrequencyResponse()', () => {
     it('should decode base64 float arrays from REW API', async () => {
       // Create Base64-encoded float32 arrays (REW API format - big-endian)
@@ -451,6 +630,508 @@ describe('REWApiClient', () => {
       expect(data.frequencies_hz).toHaveLength(0);
       expect(data.spl_db).toHaveLength(0);
       expect(data.phase_degrees).toHaveLength(0);
+    });
+  });
+
+  describe('Measurement control methods', () => {
+    it('should get measure commands', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/measure/commands', () => {
+          return HttpResponse.json(['Measure', 'SPL', 'Cancel']);
+        })
+      );
+      const client = new REWApiClient();
+      const commands = await client.getMeasureCommands();
+      expect(commands).toEqual(['Measure', 'SPL', 'Cancel']);
+    });
+
+    it('should execute measure command', async () => {
+      server.use(
+        http.post('http://127.0.0.1:4735/measure/command', () => {
+          return HttpResponse.json({ status: 200 });
+        })
+      );
+      const client = new REWApiClient();
+      const result = await client.executeMeasureCommand('Measure');
+      expect(result.success).toBe(true);
+      expect(result.status).toBe(200);
+    });
+
+    it('should get measure level', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/measure/level', () => {
+          return HttpResponse.json({ level: -12, unit: 'dBFS' });
+        })
+      );
+      const client = new REWApiClient();
+      const level = await client.getMeasureLevel();
+      expect(level.level).toBe(-12);
+      expect(level.unit).toBe('dBFS');
+    });
+
+    it('should set measure level', async () => {
+      server.use(
+        http.post('http://127.0.0.1:4735/measure/level', () => {
+          return HttpResponse.json({ status: 200 });
+        })
+      );
+      const client = new REWApiClient();
+      const result = await client.setMeasureLevel(-18, 'dBFS');
+      expect(result).toBe(true);
+    });
+
+    it('should get sweep config', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/measure/sweep/configuration', () => {
+          return HttpResponse.json({
+            startFreq: 20,
+            endFreq: 20000,
+            length: 256,
+            fillSilenceWithDither: false
+          });
+        })
+      );
+      const client = new REWApiClient();
+      const config = await client.getSweepConfig();
+      expect(config.startFreq).toBe(20);
+      expect(config.endFreq).toBe(20000);
+    });
+
+    it('should set sweep config', async () => {
+      server.use(
+        http.post('http://127.0.0.1:4735/measure/sweep/configuration', () => {
+          return HttpResponse.json({ status: 200 });
+        })
+      );
+      const client = new REWApiClient();
+      const result = await client.setSweepConfig({ startFreq: 10, endFreq: 24000 });
+      expect(result).toBe(true);
+    });
+  });
+
+  describe('Generator methods', () => {
+    it('should get generator status', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/generator/status', () => {
+          return HttpResponse.json({
+            enabled: true,
+            playing: false,
+            signal: 'pinknoise',
+            level: -18
+          });
+        })
+      );
+      const client = new REWApiClient();
+      const status = await client.getGeneratorStatus();
+      expect(status.enabled).toBe(true);
+      expect(status.signal).toBe('pinknoise');
+    });
+
+    it('should get available generator signals', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/generator/signals', () => {
+          return HttpResponse.json(['pinknoise', 'whitenoise', 'sine']);
+        })
+      );
+      const client = new REWApiClient();
+      const signals = await client.getGeneratorSignals();
+      expect(signals).toEqual(['pinknoise', 'whitenoise', 'sine']);
+    });
+
+    it('should set generator signal', async () => {
+      server.use(
+        http.post('http://127.0.0.1:4735/generator/signal', () => {
+          return HttpResponse.json({ status: 200 });
+        })
+      );
+      const client = new REWApiClient();
+      const result = await client.setGeneratorSignal('pinknoise');
+      expect(result).toBe(true);
+    });
+
+    it('should get generator level', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/generator/level', () => {
+          return HttpResponse.json({ level: -18, unit: 'dBFS' });
+        })
+      );
+      const client = new REWApiClient();
+      const level = await client.getGeneratorLevel();
+      expect(level.level).toBe(-18);
+    });
+
+    it('should set generator frequency', async () => {
+      server.use(
+        http.post('http://127.0.0.1:4735/generator/frequency', () => {
+          return HttpResponse.json({ status: 200 });
+        })
+      );
+      const client = new REWApiClient();
+      const result = await client.setGeneratorFrequency(1000);
+      expect(result).toBe(true);
+    });
+
+    it('should execute generator command', async () => {
+      server.use(
+        http.post('http://127.0.0.1:4735/generator/command', () => {
+          return new HttpResponse(null, { status: 202 });
+        })
+      );
+      const client = new REWApiClient();
+      const result = await client.executeGeneratorCommand('Play');
+      expect(result).toBe(true);
+    });
+  });
+
+  describe('SPL meter methods', () => {
+    it('should get SPL meter levels', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/spl-meter/1/levels', () => {
+          return HttpResponse.json({
+            spl: 75.5,
+            leq: 74.2,
+            sel: 73.8,
+            weighting: 'A',
+            filter: 'None'
+          });
+        })
+      );
+      const client = new REWApiClient();
+      const levels = await client.getSPLMeterLevels(1);
+      expect(levels.spl).toBe(75.5);
+      expect(levels.weighting).toBe('A');
+    });
+
+    it('should set SPL meter config', async () => {
+      server.use(
+        http.post('http://127.0.0.1:4735/spl-meter/1/configuration', () => {
+          return HttpResponse.json({ status: 200 });
+        })
+      );
+      const client = new REWApiClient();
+      const result = await client.setSPLMeterConfig(1, { weighting: 'C' });
+      expect(result).toBe(true);
+    });
+
+    it('should execute SPL meter command', async () => {
+      server.use(
+        http.post('http://127.0.0.1:4735/spl-meter/1/command', () => {
+          return new HttpResponse(null, { status: 202 });
+        })
+      );
+      const client = new REWApiClient();
+      const result = await client.executeSPLMeterCommand(1, 'Start');
+      expect(result).toBe(true);
+    });
+  });
+
+  describe('Blocking mode methods', () => {
+    it('should get blocking mode status', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/application/blocking', () => {
+          return HttpResponse.json(true);
+        })
+      );
+      const client = new REWApiClient();
+      const enabled = await client.getBlockingMode();
+      expect(enabled).toBe(true);
+    });
+
+    it('should set blocking mode', async () => {
+      server.use(
+        http.post('http://127.0.0.1:4735/application/blocking', () => {
+          return HttpResponse.json({ status: 200 });
+        })
+      );
+      const client = new REWApiClient();
+      const result = await client.setBlockingMode(true);
+      expect(result).toBe(true);
+    });
+  });
+
+  describe('Health check method', () => {
+    it('should return healthy status when API available', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/doc.json', () => {
+          return HttpResponse.json({
+            info: { version: '5.30.9' },
+            openapi: '3.0.0'
+          });
+        })
+      );
+      const client = new REWApiClient();
+      const health = await client.healthCheck();
+      expect(health.server_responding).toBe(true);
+      expect(health.openapi_available).toBe(true);
+      expect(health.api_version).toBe('5.30.9');
+    });
+
+    it('should return error when server not responding', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/doc.json', () => {
+          return HttpResponse.error();
+        })
+      );
+      const client = new REWApiClient();
+      const health = await client.healthCheck();
+      expect(health.server_responding).toBe(false);
+      expect(health.openapi_available).toBe(false);
+      expect(health.suggestion).toBeDefined();
+    });
+  });
+
+  describe('Input calibration methods', () => {
+    it('should get input calibration', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/audio/input-cal', () => {
+          return HttpResponse.json({
+            enabled: true,
+            filename: 'cal.txt',
+            offset: 94.0
+          });
+        })
+      );
+      const client = new REWApiClient();
+      const cal = await client.getInputCalibration();
+      expect(cal).not.toBeNull();
+      expect(cal?.enabled).toBe(true);
+    });
+
+    it('should return null when calibration not available', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/audio/input-cal', () => {
+          return new HttpResponse(null, { status: 404 });
+        })
+      );
+      const client = new REWApiClient();
+      const cal = await client.getInputCalibration();
+      expect(cal).toBeNull();
+    });
+  });
+
+  describe('Additional audio methods', () => {
+    it('should get audio status', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/audio', () => {
+          return HttpResponse.json({
+            enabled: true,
+            ready: true,
+            driver: 'CoreAudio'
+          });
+        })
+      );
+      const client = new REWApiClient();
+      const status = await client.getAudioStatus();
+      expect(status.enabled).toBe(true);
+      expect(status.ready).toBe(true);
+    });
+
+    it('should get audio driver types', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/audio/driver-types', () => {
+          return HttpResponse.json(['CoreAudio', 'ASIO', 'Java']);
+        })
+      );
+      const client = new REWApiClient();
+      const types = await client.getAudioDriverTypes();
+      expect(types).toEqual(['CoreAudio', 'ASIO', 'Java']);
+    });
+
+    it('should get current Java input device', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/audio/java/input-device', () => {
+          return HttpResponse.json('Built-in Microphone');
+        })
+      );
+      const client = new REWApiClient();
+      const device = await client.getJavaInputDevice();
+      expect(device).toBe('Built-in Microphone');
+    });
+
+    it('should get current Java output device', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/audio/java/output-device', () => {
+          return HttpResponse.json('Built-in Output');
+        })
+      );
+      const client = new REWApiClient();
+      const device = await client.getJavaOutputDevice();
+      expect(device).toBe('Built-in Output');
+    });
+  });
+
+  describe('Additional generator methods', () => {
+    it('should get generator signal', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/generator/signal', () => {
+          return HttpResponse.json('pinknoise');
+        })
+      );
+      const client = new REWApiClient();
+      const signal = await client.getGeneratorSignal();
+      expect(signal).toBe('pinknoise');
+    });
+
+    it('should get generator frequency', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/generator/frequency', () => {
+          return HttpResponse.json(1000);
+        })
+      );
+      const client = new REWApiClient();
+      const freq = await client.getGeneratorFrequency();
+      expect(freq).toBe(1000);
+    });
+
+    it('should set generator level', async () => {
+      server.use(
+        http.post('http://127.0.0.1:4735/generator/level', () => {
+          return HttpResponse.json({ status: 200 });
+        })
+      );
+      const client = new REWApiClient();
+      const result = await client.setGeneratorLevel(-12, 'dBFS');
+      expect(result).toBe(true);
+    });
+
+    it('should get generator commands', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/generator/commands', () => {
+          return HttpResponse.json(['Play', 'Stop']);
+        })
+      );
+      const client = new REWApiClient();
+      const commands = await client.getGeneratorCommands();
+      expect(commands).toEqual(['Play', 'Stop']);
+    });
+  });
+
+  describe('Additional measurement methods', () => {
+    it('should get measure level units', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/measure/level/units', () => {
+          return HttpResponse.json(['dBFS', 'dBV', 'dBu']);
+        })
+      );
+      const client = new REWApiClient();
+      const units = await client.getMeasureLevelUnits();
+      expect(units).toEqual(['dBFS', 'dBV', 'dBu']);
+    });
+
+    it('should get measure naming', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/measure/naming', () => {
+          return HttpResponse.json({
+            prefix: 'Measurement',
+            includeDate: true,
+            includeTime: false
+          });
+        })
+      );
+      const client = new REWApiClient();
+      const naming = await client.getMeasureNaming();
+      expect(naming).toBeDefined();
+    });
+
+    it('should set measure naming', async () => {
+      server.use(
+        http.post('http://127.0.0.1:4735/measure/naming', () => {
+          return HttpResponse.json({ status: 200 });
+        })
+      );
+      const client = new REWApiClient();
+      const result = await client.setMeasureNaming({ prefix: 'Test' });
+      expect(result).toBe(true);
+    });
+
+    it('should get measure notes', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/measure/notes', () => {
+          return HttpResponse.json('Test notes');
+        })
+      );
+      const client = new REWApiClient();
+      const notes = await client.getMeasureNotes();
+      expect(notes).toBe('Test notes');
+    });
+
+    it('should set measure notes', async () => {
+      server.use(
+        http.post('http://127.0.0.1:4735/measure/notes', () => {
+          return HttpResponse.json({ status: 200 });
+        })
+      );
+      const client = new REWApiClient();
+      const result = await client.setMeasureNotes('New notes');
+      expect(result).toBe(true);
+    });
+
+    it('should get timing reference', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/measure/timing/reference', () => {
+          return HttpResponse.json({ mode: 'acoustic' });
+        })
+      );
+      const client = new REWApiClient();
+      const ref = await client.getTimingReference();
+      expect(ref).toBeDefined();
+    });
+  });
+
+  describe('Additional SPL meter methods', () => {
+    it('should get SPL meter commands', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/spl-meter/commands', () => {
+          return HttpResponse.json(['Start', 'Stop', 'Reset']);
+        })
+      );
+      const client = new REWApiClient();
+      const commands = await client.getSPLMeterCommands();
+      expect(commands).toEqual(['Start', 'Stop', 'Reset']);
+    });
+
+    it('should get SPL meter config', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/spl-meter/1/configuration', () => {
+          return HttpResponse.json({
+            mode: 'slow',
+            weighting: 'A',
+            filter: 'None'
+          });
+        })
+      );
+      const client = new REWApiClient();
+      const config = await client.getSPLMeterConfig(1);
+      expect(config).toBeDefined();
+    });
+  });
+
+  describe('Connection state methods', () => {
+    it('should track isConnected state', () => {
+      const client = new REWApiClient();
+      expect(client.isConnected()).toBe(false);
+    });
+
+    it('should disconnect and clear state', async () => {
+      server.use(
+        http.get('http://127.0.0.1:4735/doc.json', () => {
+          return HttpResponse.json({ info: { version: '5.30.9' }, openapi: '3.0.0' });
+        }),
+        http.get('http://127.0.0.1:4735/measurements', () => {
+          return HttpResponse.json([]);
+        }),
+        http.get('http://127.0.0.1:4735/application', () => {
+          return new HttpResponse(null, { status: 404 });
+        }),
+        http.get('http://127.0.0.1:4735/application/blocking', () => {
+          return new HttpResponse(null, { status: 404 });
+        })
+      );
+      const client = new REWApiClient();
+      await client.connect();
+      expect(client.isConnected()).toBe(true);
+      client.disconnect();
+      expect(client.isConnected()).toBe(false);
     });
   });
 });
