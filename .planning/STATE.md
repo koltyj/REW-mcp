@@ -10,30 +10,30 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 2 of 8 (Testing Infrastructure) — In progress
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: Phase 2 in progress
-Last activity: 2026-01-21 — Completed 02-01-PLAN.md
+Last activity: 2026-01-21 — Completed 02-02-PLAN.md
 
 Progress: [██████████] 100% (Phase 1: 4/4 plans)
-Progress: [███░░░░░░░] 33% (Phase 2: 1/3 plans)
+Progress: [██████░░░░] 67% (Phase 2: 2/3 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: 5.2 min
-- Total execution time: 0.43 hours
+- Total plans completed: 6
+- Average duration: 5.5 min
+- Total execution time: 0.55 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1 (Core API + MCP Validation) | 4 | 25 min | 6.25 min |
-| 2 (Testing Infrastructure) | 1 | 2 min | 2 min |
+| 2 (Testing Infrastructure) | 2 | 9 min | 4.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 4m (01-02), 7m (01-03), 7m (01-04), 2m (02-01)
-- Trend: Accelerating (avg 5.0min for last 4 plans)
+- Last 5 plans: 7m (01-03), 7m (01-04), 2m (02-01), 7m (02-02)
+- Trend: Stable (avg 5.75min for last 4 plans)
 
 *Updated after each plan completion*
 
@@ -64,6 +64,9 @@ Recent decisions affecting current work:
 - **02-01:** Start coverage thresholds below current levels (45%) to prevent immediate CI failures
 - **02-01:** Use vitest-coverage-report-action instead of codecov for better PR integration
 - **02-01:** Test European decimal format via parseFrequencyResponse (public API) not internal parseNumber
+- **02-02:** Use .passthrough() on Zod schemas to allow additional API fields for forward compatibility
+- **02-02:** REWClientLike as interface not Zod schema (internal implementation, not API data)
+- **02-02:** validateApiResponse for critical data, safeParse for optional data
 
 ### Pending Todos
 
@@ -85,6 +88,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-21 17:08 UTC
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-01-21 17:14 UTC
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None (plan complete)
