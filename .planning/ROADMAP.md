@@ -33,12 +33,13 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Measurement listing and retrieval return actual data from REW instance
   4. At least one analysis tool processes real REW data without silent failures
   5. All API errors propagate as structured errors (no null returns)
-**Plans:** 3 plans
+**Plans:** 4 plans
 
 Plans:
 - [ ] 01-01-PLAN.md — Refactor API client error handling (null returns to typed errors)
-- [ ] 01-02-PLAN.md — API client integration tests with MSW
-- [ ] 01-03-PLAN.md — MCP end-to-end integration tests
+- [ ] 01-02-PLAN.md — API client integration tests with MSW (core methods + FNDN-07)
+- [ ] 01-03-PLAN.md — MCP end-to-end integration tests (FNDN-08 analysis tools)
+- [ ] 01-04-PLAN.md — Base64 data format validation tests
 
 **Notes:**
 - Addresses research pitfall: Silent API failures (highest risk)
@@ -190,7 +191,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Core API + MCP Validation | 0/3 | Ready for execution | - |
+| 1. Core API + MCP Validation | 0/4 | Ready for execution | - |
 | 2. Testing Infrastructure | 0/TBD | Not started | - |
 | 3. Calibration Setup Tools | 0/TBD | Not started | - |
 | 4. Measurement Workflow + Sessions | 0/TBD | Not started | - |
