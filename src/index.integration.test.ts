@@ -474,4 +474,73 @@ describe('MCP Server Integration', () => {
       expect(() => JSON.parse(response.content[0].text as string)).not.toThrow();
     });
   });
+
+  describe('rew.api_audio Tool Coverage (FNDN-11)', () => {
+    it('should validate action enum (invalid input)', async () => {
+      // Test input validation for api_audio tool
+      const response = await mcpClient.callTool({
+        name: 'rew.api_audio',
+        arguments: { action: 'invalid_action' }
+      });
+
+      // Invalid enum value causes Zod validation error → isError: true
+      expect(response.isError).toBe(true);
+    });
+
+    it('should accept valid action enum values', async () => {
+      // Test that valid actions are accepted (even if API call fails)
+      const {tools} = await mcpClient.listTools();
+      const audioTool = tools.find(t => t.name === 'rew.api_audio');
+
+      expect(audioTool).toBeDefined();
+      expect(audioTool?.inputSchema).toBeDefined();
+
+      // Verify action enum includes expected values
+      const actionEnum = (audioTool?.inputSchema as any).properties?.action?.enum;
+      expect(actionEnum).toContain('status');
+      expect(actionEnum).toContain('list_devices');
+    });
+  });
+
+  describe('rew.api_measure Tool Coverage (FNDN-11)', () => {
+    it('should validate action enum (invalid input)', async () => {
+      // Test input validation for api_measure tool
+      const response = await mcpClient.callTool({
+        name: 'rew.api_measure',
+        arguments: { action: 'invalid_action' }
+      });
+
+      // Invalid enum value causes Zod validation error → isError: true
+      expect(response.isError).toBe(true);
+    });
+
+    it('should validate config.level_db range', async () => {
+      // Test that config.level_db validates range (-60 to 0)
+      const response = await mcpClient.callTool({
+        name: 'rew.api_measure',
+        arguments: {
+          action: 'configure',
+          config: { level_db: -100 }  // Out of range
+        }
+      });
+
+      // Out of range value causes Zod validation error → isError: true
+      expect(response.isError).toBe(true);
+    });
+
+    it('should accept valid action enum values', async () => {
+      // Test that valid actions are accepted
+      const {tools} = await mcpClient.listTools();
+      const measureTool = tools.find(t => t.name === 'rew.api_measure');
+
+      expect(measureTool).toBeDefined();
+      expect(measureTool?.inputSchema).toBeDefined();
+
+      // Verify action enum includes expected values
+      const actionEnum = (measureTool?.inputSchema as any).properties?.action?.enum;
+      expect(actionEnum).toContain('status');
+      expect(actionEnum).toContain('configure');
+      expect(actionEnum).toContain('sweep');
+    });
+  });
 });
