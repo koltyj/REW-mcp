@@ -11,10 +11,10 @@ export default defineConfig({
       include: ['src/**/*.ts'],
       exclude: ['src/**/*.test.ts', 'src/types/**', 'src/index.ts'],
       thresholds: {
-        lines: 45,        // Current: 48.9%, start just below
-        functions: 50,    // Current: 56.43%
-        branches: 70,     // Current: 76.17%
-        statements: 45    // Current: 48.9%
+        lines: 52,        // Phase 2 target: 54.41% achieved, set below with buffer
+        functions: 77,    // Phase 2 target: 79.7% achieved, set below with buffer
+        branches: 70,     // Maintained from Phase 1 (72.68% actual)
+        statements: 52    // Phase 2 target: 54.41% achieved, set below with buffer
       }
     }
   }
