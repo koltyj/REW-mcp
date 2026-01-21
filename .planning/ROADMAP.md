@@ -56,17 +56,20 @@ Plans:
   3. Parser handles European decimal format (comma separators) correctly
   4. No explicit `any` types remain in tool handlers (replaced with Zod validation)
   5. CI runs integration tests and reports coverage
-**Plans:** 3 plans
+**Plans:** 5 plans (3 original + 2 gap closure)
 
 Plans:
-- [ ] 02-01-PLAN.md — Configure coverage thresholds and European decimal tests
-- [ ] 02-02-PLAN.md — Replace any types with Zod schemas (FNDN-13, FNDN-14)
-- [ ] 02-03-PLAN.md — Extend test coverage to 80%/70% targets
+- [x] 02-01-PLAN.md — Configure coverage thresholds and European decimal tests
+- [x] 02-02-PLAN.md — Replace any types with Zod schemas (FNDN-13, FNDN-14)
+- [x] 02-03-PLAN.md — Extend test coverage to 80%/70% targets
+- [ ] 02-04-PLAN.md — [GAP CLOSURE] Unit tests for api-audio and api-generator tools
+- [ ] 02-05-PLAN.md — [GAP CLOSURE] Unit tests for api-measure, api-spl-meter, api-measure-workflow tools
 
 **Notes:**
 - Addresses research pitfall: Type erasure via `any` types
 - FNDN-10 and FNDN-11 partially satisfied by Phase 1 (extends coverage, not rebuilds)
 - Implements Zod validation for all REW API responses (research recommendation)
+- Gap closure plans added after verification found tool handlers at 25.12% (target: 70%)
 
 ### Phase 3: Calibration Setup Tools
 **Goal**: Users can calibrate mic gain and monitor levels before measurement
@@ -194,7 +197,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Core API + MCP Validation | 4/4 | Complete | 2026-01-21 |
-| 2. Testing Infrastructure | 0/3 | Planned | - |
+| 2. Testing Infrastructure | 3/5 | Gap closure | - |
 | 3. Calibration Setup Tools | 0/TBD | Not started | - |
 | 4. Measurement Workflow + Sessions | 0/TBD | Not started | - |
 | 5. Analysis & Interpretation | 0/TBD | Not started | - |
@@ -204,4 +207,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 
 ---
 *Created: 2026-01-21*
-*Last updated: 2026-01-21 (Phase 2 planned)*
+*Last updated: 2026-01-21 (Phase 2 gap closure plans added)*
