@@ -72,6 +72,24 @@ export const MeasureLevelSchema = z.object({
 
 export type MeasureLevel = z.infer<typeof MeasureLevelSchema>;
 
+// Input levels response from /input-levels/last-levels
+export const InputLevelsSchema = z.object({
+  unit: z.string(),
+  rms: z.array(z.number()),       // RMS level per channel
+  peak: z.array(z.number()),      // Peak level per channel
+  timeSpanSeconds: z.number()     // Averaging window
+}).passthrough();
+
+export type InputLevelsResponse = z.infer<typeof InputLevelsSchema>;
+
+// Normalized interface for internal use
+export interface InputLevels {
+  unit: string;
+  rms_levels: number[];
+  peak_levels: number[];
+  time_span_seconds: number;
+}
+
 // REW client type (for workflow functions that accept client parameter)
 // This is a structural type, not validation - client is internal
 export interface REWClientLike {
