@@ -56,14 +56,16 @@ Plans:
   3. Parser handles European decimal format (comma separators) correctly
   4. No explicit `any` types remain in tool handlers (replaced with Zod validation)
   5. CI runs integration tests and reports coverage
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- TBD (will be created during planning)
+- [ ] 02-01-PLAN.md — Configure coverage thresholds and European decimal tests
+- [ ] 02-02-PLAN.md — Replace any types with Zod schemas (FNDN-13, FNDN-14)
+- [ ] 02-03-PLAN.md — Extend test coverage to 80%/70% targets
 
 **Notes:**
 - Addresses research pitfall: Type erasure via `any` types
-- Addresses research pitfall: No integration tests
+- FNDN-10 and FNDN-11 partially satisfied by Phase 1 (extends coverage, not rebuilds)
 - Implements Zod validation for all REW API responses (research recommendation)
 
 ### Phase 3: Calibration Setup Tools
@@ -192,7 +194,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Core API + MCP Validation | 4/4 | Complete | 2026-01-21 |
-| 2. Testing Infrastructure | 0/TBD | Not started | - |
+| 2. Testing Infrastructure | 0/3 | Planned | - |
 | 3. Calibration Setup Tools | 0/TBD | Not started | - |
 | 4. Measurement Workflow + Sessions | 0/TBD | Not started | - |
 | 5. Analysis & Interpretation | 0/TBD | Not started | - |
@@ -202,4 +204,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 
 ---
 *Created: 2026-01-21*
-*Last updated: 2026-01-21 (Phase 1 complete)*
+*Last updated: 2026-01-21 (Phase 2 planned)*
