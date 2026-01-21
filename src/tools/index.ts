@@ -26,6 +26,7 @@ import { executeApiGenerator, ApiGeneratorInputSchema } from './api-generator.js
 import { executeApiSPLMeter, ApiSPLMeterInputSchema } from './api-spl-meter.js';
 import { executeApiMeasureWorkflow, ApiMeasureWorkflowInputSchema } from './api-measure-workflow.js';
 import { executeApiCalibrateSPL, ApiCalibrateSPLInputSchema } from './api-calibrate-spl.js';
+import { executeApiCheckLevels, ApiCheckLevelsInputSchema } from './api-check-levels.js';
 
 /**
  * Register all tools with the MCP server
@@ -143,6 +144,12 @@ export function registerTools(server: Server): void {
           title: 'Calibrate Monitor SPL',
           description: 'Semi-automated monitor level calibration workflow. Actions: start (play pink noise + start SPL meter), check (read current SPL + get adjustment guidance), stop (end calibration). Guides user to target SPL (default: 85 dB broadcast reference) with configurable tolerance.',
           inputSchema: zodToJsonSchema(ApiCalibrateSPLInputSchema)
+        },
+        {
+          name: 'rew.api_check_levels',
+          title: 'Check REW Input Levels',
+          description: 'Check input levels for mic gain calibration. Reads RMS/peak dBFS and provides zone-based feedback (Clipping, Hot, Optimal, Low, Very Low) with adjustment guidance. Blocks measurement for clipping or very low conditions.',
+          inputSchema: zodToJsonSchema(ApiCheckLevelsInputSchema)
         }
       ]
     };
@@ -226,6 +233,10 @@ export function registerTools(server: Server): void {
 
         case 'rew.api_calibrate_spl':
           result = await executeApiCalibrateSPL(args as any);
+          break;
+
+        case 'rew.api_check_levels':
+          result = await executeApiCheckLevels(args as any);
           break;
 
         default:
