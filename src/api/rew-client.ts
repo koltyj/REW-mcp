@@ -15,8 +15,10 @@ import {
   WaterfallSchema,
   RT60Schema,
   FrequencyResponseSchema,
+  InputLevelsSchema,
   validateApiResponse,
-  type InputCalibration
+  type InputCalibration,
+  type InputLevels
 } from './schemas.js';
 
 export interface REWApiConfig {
@@ -1142,6 +1144,83 @@ export class REWApiClient {
   }): Promise<boolean> {
     const response = await this.request('POST', `/spl-meter/${meterId}/configuration`, config);
     return response.status === 200;
+  }
+
+  // ============================================================
+  // INPUT LEVEL MONITORING METHODS
+  // ============================================================
+
+  /**
+   * Get available input level monitoring commands
+   */
+  async getInputLevelCommands(): Promise<string[]> {
+    const response = await this.request('GET', '/input-levels/commands');
+    if (response.status !== 200) {
+      return [];
+    }
+    return Array.isArray(response.data) ? response.data : [];
+  }
+
+  /**
+   * Start input level monitoring
+   * API expects: { command: "start" }
+   */
+  async startInputLevelMonitoring(): Promise<boolean> {
+    const response = await this.request('POST', '/input-levels/command', { command: 'start' });
+    return response.status === 200 || response.status === 202;
+  }
+
+  /**
+   * Stop input level monitoring
+   * API expects: { command: "stop" }
+   */
+  async stopInputLevelMonitoring(): Promise<boolean> {
+    const response = await this.request('POST', '/input-levels/command', { command: 'stop' });
+    return response.status === 200 || response.status === 202;
+  }
+
+  /**
+   * Get available input level units
+   */
+  async getInputLevelUnits(): Promise<string[]> {
+    const response = await this.request('GET', '/input-levels/units');
+    if (response.status !== 200) {
+      return [];
+    }
+    return Array.isArray(response.data) ? response.data : [];
+  }
+
+  /**
+   * Get latest input levels (RMS and peak per channel)
+   * @param unit - Optional unit (e.g., "dBFS")
+   * @returns InputLevels object or null if monitoring not active or validation fails
+   */
+  async getInputLevels(unit?: string): Promise<InputLevels | null> {
+    let path = '/input-levels/last-levels';
+    if (unit) {
+      const params = new URLSearchParams({ unit });
+      path += `?${params.toString()}`;
+    }
+
+    const response = await this.request('GET', path);
+
+    if (response.status !== 200 || !response.data) {
+      return null;
+    }
+
+    // Validate response structure
+    const parsed = InputLevelsSchema.safeParse(response.data);
+    if (!parsed.success) {
+      return null;
+    }
+
+    // Transform to normalized interface
+    return {
+      unit: parsed.data.unit,
+      rms_levels: parsed.data.rms,
+      peak_levels: parsed.data.peak,
+      time_span_seconds: parsed.data.timeSpanSeconds
+    };
   }
 }
 
