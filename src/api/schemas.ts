@@ -119,6 +119,11 @@ export interface REWClientLike {
   setGeneratorLevel(level: number, unit?: string): Promise<boolean>;
   executeGeneratorCommand(command: string): Promise<boolean>;
   getSPLMeterLevels(meterId: number): Promise<unknown>;
+  getInputLevelCommands(): Promise<string[]>;
+  startInputLevelMonitoring(): Promise<boolean>;
+  stopInputLevelMonitoring(): Promise<boolean>;
+  getInputLevelUnits(): Promise<string[]>;
+  getInputLevels(unit?: string): Promise<InputLevels | null>;
 }
 
 // Impulse response data schema
