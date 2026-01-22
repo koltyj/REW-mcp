@@ -12,6 +12,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { registerTools } from './tools/index.js';
 import { registerResources } from './resources/index.js';
+import { registerPrompts } from './prompts/index.js';
 
 /**
  * Create and start the MCP server
@@ -46,6 +47,9 @@ async function main() {
 
   // Register all resources
   registerResources(server);
+
+  // Register all prompts
+  registerPrompts(server);
 
   // Log server start
   server.onerror = (error) => {
