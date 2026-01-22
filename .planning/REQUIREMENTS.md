@@ -85,13 +85,13 @@ Actionable recommendations for improvement.
 
 Guided step-by-step calibration workflow.
 
-- [ ] **WKFL-01**: Calibration session prompt template available
-- [ ] **WKFL-02**: Gain staging workflow prompt available
-- [ ] **WKFL-03**: Level calibration workflow prompt available
-- [ ] **WKFL-04**: Systematic measurement workflow prompt available
-- [ ] **WKFL-05**: Session state exposed as MCP resource
-- [ ] **WKFL-06**: Measurement history exposed as MCP resource
-- [ ] **WKFL-07**: Session recommendations exposed as MCP resource
+- [x] **WKFL-01**: Calibration session prompt template available
+- [x] **WKFL-02**: Gain staging workflow prompt available
+- [x] **WKFL-03**: Level calibration workflow prompt available
+- [x] **WKFL-04**: Systematic measurement workflow prompt available
+- [x] **WKFL-05**: Session state exposed as MCP resource
+- [x] **WKFL-06**: Measurement history exposed as MCP resource
+- [x] **WKFL-07**: Session recommendations exposed as MCP resource
 
 ## v2 Requirements
 
@@ -184,13 +184,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | OPTM-04 | Phase 7 | Complete |
 | OPTM-05 | Phase 7 | Complete |
 | OPTM-06 | Phase 7 | Complete |
-| WKFL-01 | Phase 8 | Pending |
-| WKFL-02 | Phase 8 | Pending |
-| WKFL-03 | Phase 8 | Pending |
-| WKFL-04 | Phase 8 | Pending |
-| WKFL-05 | Phase 8 | Pending |
-| WKFL-06 | Phase 8 | Pending |
-| WKFL-07 | Phase 8 | Pending |
+| WKFL-01 | Phase 8 | Complete |
+| WKFL-02 | Phase 8 | Complete |
+| WKFL-03 | Phase 8 | Complete |
+| WKFL-04 | Phase 8 | Complete |
+| WKFL-05 | Phase 8 | Complete |
+| WKFL-06 | Phase 8 | Complete |
+| WKFL-07 | Phase 8 | Complete |
 
 **Coverage:**
 - v1 requirements: 48 total
@@ -199,4 +199,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-01-21*
-*Last updated: 2026-01-22 Phase 7 complete*
+*Last updated: 2026-01-22 Phase 8 complete - ALL v1 REQUIREMENTS COMPLETE*

@@ -19,7 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Analysis & Interpretation** - Plain language room analysis
 - [x] **Phase 6: GLM Transparency Layer** - Explain what GLM did/couldn't fix
 - [x] **Phase 7: Optimization Guidance** - Placement and validation recommendations
-- [ ] **Phase 8: Workflow Orchestration** - Prompts and resources for guided workflows
+- [x] **Phase 8: Workflow Orchestration** - Prompts and resources for guided workflows
 
 ## Phase Details
 
@@ -208,9 +208,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 08-01-PLAN.md — MCP Resources infrastructure (session, measurement, recommendations, history)
-- [ ] 08-02-PLAN.md — MCP Prompts for calibration workflows (full, gain staging, measurement, optimization)
-- [ ] 08-03-PLAN.md — Unit tests for resources and prompts modules
+- [x] 08-01-PLAN.md — MCP Resources infrastructure (session, measurement, recommendations, history)
+- [x] 08-02-PLAN.md — MCP Prompts for calibration workflows (full, gain staging, measurement, optimization)
+- [x] 08-03-PLAN.md — Unit tests for resources and prompts modules
 
 **Notes:**
 - Implements MCP Prompt-orchestrated tool composition (research recommendation)
@@ -233,8 +233,8 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 5. Analysis & Interpretation | 4/4 | Complete | 2026-01-22 |
 | 6. GLM Transparency Layer | 3/3 | Complete | 2026-01-22 |
 | 7. Optimization Guidance | 4/4 | Complete | 2026-01-22 |
-| 8. Workflow Orchestration | 0/3 | Not started | - |
+| 8. Workflow Orchestration | 3/3 | Complete | 2026-01-22 |
 
 ---
 *Created: 2026-01-21*
-*Last updated: 2026-01-22 (Phase 8 planned)*
+*Last updated: 2026-01-22 (Phase 8 complete - MILESTONE COMPLETE)*
