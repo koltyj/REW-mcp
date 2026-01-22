@@ -10,22 +10,22 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 6 of 8 (GLM Transparency Layer) — In progress
-Plan: 1 of 4 in current phase
+Plan: 2 of 4 in current phase
 Status: In progress
-Last activity: 2026-01-22 — Completed 06-01-PLAN.md
+Last activity: 2026-01-21 — Completed 06-02-PLAN.md
 
 Progress: [██████████] 100% (Phase 1: 4/4 plans)
 Progress: [██████████] 100% (Phase 2: 5/5 plans)
 Progress: [██████████] 100% (Phase 3: 4/4 plans)
 Progress: [██████████] 100% (Phase 4: 4/4 plans)
 Progress: [██████████] 100% (Phase 5: 4/4 plans)
-Progress: [██▒▒▒▒▒▒▒▒] 25% (Phase 6: 1/4 plans)
+Progress: [█████▒▒▒▒▒] 50% (Phase 6: 2/4 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 22
-- Average duration: 3.9 min
+- Total plans completed: 23
+- Average duration: 3.8 min
 - Total execution time: 1.5 hours
 
 **By Phase:**
@@ -37,12 +37,12 @@ Progress: [██▒▒▒▒▒▒▒▒] 25% (Phase 6: 1/4 plans)
 | 3 (Calibration & Setup Tools) | 4 | 13 min | 3.25 min |
 | 4 (Measurement Workflow + Sessions) | 4 | 12.5 min | 3.1 min |
 | 5 (Analysis & Interpretation) | 4 | 23 min | 5.75 min |
-| 6 (GLM Transparency) | 1 | 3 min | 3 min |
+| 6 (GLM Transparency) | 2 | 5 min | 2.5 min |
 
 **Recent Trend:**
-- Phase 6 started (06-01)
-- 06-01 completed in 3 min (GLM comparison module)
-- Recent average: 3 min per plan (Phase 6, 1 plan completed)
+- Phase 6 in progress (06-01, 06-02 complete)
+- 06-02 completed in 2 min (GLM integration into analyze-room)
+- Recent average: 2.5 min per plan (Phase 6, 2 plans completed)
 
 *Updated after each plan completion*
 
@@ -133,6 +133,10 @@ Recent decisions affecting current work:
 - **06-01:** Context-dependent unchanged thresholds: <1/2/3 dB based on issue size
 - **06-01:** Overcorrection detection is informational, not warning (preference-dependent)
 - **06-01:** Post-only mode confidence = medium (heuristics without baseline comparison)
+- **06-02:** GLM comparison always runs (full or heuristic mode) based on parameter presence
+- **06-02:** GLM persistent issues mapped to placement fixability for prioritization integration
+- **06-02:** Overcorrection indicators included in summary as informational notes, not warnings
+- **06-02:** GLM severity contributes to overall severity based on persistent issue count (1/2/3+ thresholds)
 
 ### Pending Todos
 
@@ -154,6 +158,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-22 02:43 UTC
-Stopped at: Completed 06-01-PLAN.md
+Last session: 2026-01-21 00:02 UTC
+Stopped at: Completed 06-02-PLAN.md
 Resume file: None
