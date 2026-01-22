@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-01-21)
 
 **Core value:** Claude can autonomously measure, interpret, and guide fixes for room acoustics — turning raw frequency response data into actionable placement and treatment recommendations.
-**Current focus:** Phase 7 - Optimization Guidance
+**Current focus:** Phase 8 - Workflow Orchestration
 
 ## Current Position
 
-Phase: 7 of 8 (Optimization Guidance) — Complete
-Plan: 4 of 4 in current phase
-Status: Phase verified
-Last activity: 2026-01-22 — Completed 07-04-PLAN.md (Unit Tests)
+Phase: 8 of 8 (Workflow Orchestration) — In Progress
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-01-22 — Completed 08-01-PLAN.md (MCP Resources)
 
 Progress: [██████████] 100% (Phase 1: 4/4 plans)
 Progress: [██████████] 100% (Phase 2: 5/5 plans)
@@ -21,13 +21,14 @@ Progress: [██████████] 100% (Phase 4: 4/4 plans)
 Progress: [██████████] 100% (Phase 5: 4/4 plans)
 Progress: [██████████] 100% (Phase 6: 3/3 plans)
 Progress: [██████████] 100% (Phase 7: 4/4 plans)
+Progress: [███░░░░░░░] 33% (Phase 8: 1/3 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 28
-- Average duration: 3.6 min
-- Total execution time: 1.78 hours
+- Total plans completed: 29
+- Average duration: 3.5 min
+- Total execution time: 1.83 hours
 
 **By Phase:**
 
@@ -40,11 +41,12 @@ Progress: [██████████] 100% (Phase 7: 4/4 plans)
 | 5 (Analysis & Interpretation) | 4 | 23 min | 5.75 min |
 | 6 (GLM Transparency) | 3 | 10 min | 3.3 min |
 | 7 (Optimization Guidance) | 4 | 21 min | 5.25 min |
+| 8 (Workflow Orchestration) | 1 | 3 min | 3 min |
 
 **Recent Trend:**
-- Phase 7 complete (Optimization Guidance)
-- 4 plans executed in 21 min total
-- Recent average: 5.25 min per plan (Phase 7)
+- Phase 8 in progress (Workflow Orchestration)
+- 1 plan executed in 3 min
+- Recent average: 3 min per plan (Phase 8)
 
 *Updated after each plan completion*
 
@@ -156,6 +158,12 @@ Recent decisions affecting current work:
 - **07-04:** Test zone thresholds at exact boundaries (3.0/3.1 dB) to verify classification logic
 - **07-04:** Use controlled variance patterns in mock frequency responses for predictable testing
 - **07-04:** Mock measurementStore.get for tool tests rather than full integration
+- **08-01:** Resources capability includes subscribe: true for future subscription support
+- **08-01:** All resource handlers throw -32002 error code for not found (MCP standard)
+- **08-01:** Session resource returns measurement summaries, not full FR data (avoid large payloads)
+- **08-01:** Measurement resource returns full frequency response arrays for analysis
+- **08-01:** Recommendations resource uses placeholder structure (full tracking out of scope)
+- **08-01:** History resource attempts to correlate session measurements with measurement store
 
 ### Pending Todos
 
@@ -166,7 +174,7 @@ None yet.
 **Phase 1-2 (Foundation):**
 - ~~Silent API failures are highest-risk pitfall~~ (RESOLVED in 01-01: typed error handling implemented)
 - ~~Zero integration tests in current codebase~~ (RESOLVED in 01-02: API client tests with MSW)
-- ~~MCP specification violation from unused capabilities~~ (VERIFIED in 01-03: server does not declare resources/prompts capabilities)
+- ~~MCP specification violation from unused capabilities~~ (RESOLVED in 08-01: server now declares resources/prompts capabilities)
 
 **Phase 4 (Measurement Workflow):**
 - ~~Research flag: REW API measurement triggering capability unverified~~ (RESOLVED in 04-03: executeMeasureCommand successfully triggers measurements via REW API)
@@ -177,8 +185,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-22 04:18 UTC
-Stopped at: Completed 07-04-PLAN.md (Unit Tests)
+Last session: 2026-01-22 05:12 UTC
+Stopped at: Completed 08-01-PLAN.md (MCP Resources)
 Resume file: None
 
-**Phase 7 Verified:** All optimization guidance functionality delivered with comprehensive tests (97.43% coverage, 6/6 must-haves verified). Ready for Phase 8 (Workflow Orchestration).
+**Phase 8 Plan 1 Complete:** MCP Resources capability implemented with session://, measurement://, recommendations://, and history:// URI schemes. Server now declares resources capability.
