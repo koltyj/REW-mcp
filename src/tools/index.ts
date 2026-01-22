@@ -28,6 +28,7 @@ import { executeApiMeasureWorkflow, ApiMeasureWorkflowInputSchema } from './api-
 import { executeApiCalibrateSPL, ApiCalibrateSPLInputSchema } from './api-calibrate-spl.js';
 import { executeApiCheckLevels, ApiCheckLevelsInputSchema } from './api-check-levels.js';
 import { executeApiMeasurementSession, ApiMeasurementSessionInputSchema } from './api-measurement-session.js';
+import { executeAnalyzeRoom, AnalyzeRoomInputSchema } from './analyze-room.js';
 
 /**
  * Register all tools with the MCP server
@@ -84,6 +85,12 @@ export function registerTools(server: Server): void {
           title: 'Analyze Subwoofer Integration',
           description: 'Analyze subwoofer integration with main speakers. Evaluates phase alignment, timing, and polarity at the crossover region. Provides delay and polarity recommendations for optimal summation.',
           inputSchema: zodToJsonSchema(SubIntegrationInputSchema)
+        },
+        {
+          name: 'rew.analyze_room',
+          title: 'Unified Room Analysis',
+          description: 'Comprehensive room analysis combining peaks/nulls, room modes, sub integration, and L/R symmetry. Returns top 5 prioritized recommendations based on fixability-first scoring (60% fixability + 40% severity). Automatically handles missing optional inputs.',
+          inputSchema: zodToJsonSchema(AnalyzeRoomInputSchema)
         },
         {
           name: 'rew.api_connect',
@@ -248,6 +255,10 @@ export function registerTools(server: Server): void {
 
         case 'rew.api_measurement_session':
           result = await executeApiMeasurementSession(args as any);
+          break;
+
+        case 'rew.analyze_room':
+          result = await executeAnalyzeRoom(args as any);
           break;
 
         default:
