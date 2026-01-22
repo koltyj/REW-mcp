@@ -27,6 +27,7 @@ import { executeApiSPLMeter, ApiSPLMeterInputSchema } from './api-spl-meter.js';
 import { executeApiMeasureWorkflow, ApiMeasureWorkflowInputSchema } from './api-measure-workflow.js';
 import { executeApiCalibrateSPL, ApiCalibrateSPLInputSchema } from './api-calibrate-spl.js';
 import { executeApiCheckLevels, ApiCheckLevelsInputSchema } from './api-check-levels.js';
+import { executeApiMeasurementSession, ApiMeasurementSessionInputSchema } from './api-measurement-session.js';
 
 /**
  * Register all tools with the MCP server
@@ -150,6 +151,12 @@ export function registerTools(server: Server): void {
           title: 'Check REW Input Levels',
           description: 'Check input levels for mic gain calibration. Reads RMS/peak dBFS and provides zone-based feedback (Clipping, Hot, Optimal, Low, Very Low) with adjustment guidance. Blocks measurement for clipping or very low conditions.',
           inputSchema: zodToJsonSchema(ApiCheckLevelsInputSchema)
+        },
+        {
+          name: 'rew.api_measurement_session',
+          title: 'Measurement Session Workflow',
+          description: 'Guided L/R/Sub measurement workflow with session state. Actions: start_session (create new), measure (trigger measurement), get_status (check progress), stop_session (end). Sessions persist across tool calls and can be resumed. REW Pro license required for automated measurements.',
+          inputSchema: zodToJsonSchema(ApiMeasurementSessionInputSchema)
         }
       ]
     };
@@ -237,6 +244,10 @@ export function registerTools(server: Server): void {
 
         case 'rew.api_check_levels':
           result = await executeApiCheckLevels(args as any);
+          break;
+
+        case 'rew.api_measurement_session':
+          result = await executeApiMeasurementSession(args as any);
           break;
 
         default:
