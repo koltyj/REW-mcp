@@ -8,6 +8,7 @@
  * - Phase inversion detection (150-210 deg range)
  * - Room modes correlation
  * - Peaks/nulls interpretation
+ * - GLM comparison (module exports and integration)
  */
 
 import { describe, it, expect } from 'vitest';
@@ -33,6 +34,12 @@ import {
 import {
   interpretRoomModes
 } from './room-modes-interpret.js';
+import {
+  compareGLMCalibration,
+  analyzePostOnly,
+  detectOvercorrection,
+  generateGLMSummary
+} from './glm-comparison.js';
 import type {
   DetectedPeak,
   DetectedNull,
@@ -509,5 +516,82 @@ describe('Peaks and Nulls Interpretation', () => {
     expect(sbirRecs.length).toBeGreaterThan(0);
     expect(sbirRecs[0].fixability).toBe('placement');
     expect(sbirRecs[0].action).toContain('Move speaker');
+  });
+});
+
+// ============================================================================
+// 7. GLM Comparison Module Export Tests
+// ============================================================================
+
+describe('GLM Comparison Module', () => {
+  it('exports compareGLMCalibration function', () => {
+    expect(typeof compareGLMCalibration).toBe('function');
+  });
+
+  it('exports analyzePostOnly function', () => {
+    expect(typeof analyzePostOnly).toBe('function');
+  });
+
+  it('exports detectOvercorrection function', () => {
+    expect(typeof detectOvercorrection).toBe('function');
+  });
+
+  it('exports generateGLMSummary function', () => {
+    expect(typeof generateGLMSummary).toBe('function');
+  });
+
+  it('compareGLMCalibration returns full comparison mode', () => {
+    const mockMeasurement = {
+      id: 'test',
+      metadata: { speaker_id: 'L' as const, condition: 'test' },
+      timestamp: new Date().toISOString(),
+      frequency_response: {
+        frequencies_hz: [100],
+        spl_db: [80],
+        phase_degrees: [0]
+      },
+      quick_stats: {
+        bass_avg_db: 80,
+        midrange_avg_db: 80,
+        treble_avg_db: 80,
+        variance_20_200hz_db: 4,
+        variance_200_2000hz_db: 3,
+        variance_2000_20000hz_db: 2
+      },
+      data_quality: { confidence: 'high' as const, warnings: [] },
+      parsed_file_metadata: { measurement_name: 'Test' }
+    };
+
+    const result = compareGLMCalibration(mockMeasurement, mockMeasurement);
+    expect(result.mode).toBe('full_comparison');
+    expect(result.confidence).toBe('high');
+  });
+
+  it('analyzePostOnly returns heuristic mode', () => {
+    const mockMeasurement = {
+      id: 'test',
+      metadata: { speaker_id: 'L' as const, condition: 'test' },
+      timestamp: new Date().toISOString(),
+      frequency_response: {
+        frequencies_hz: [100],
+        spl_db: [80],
+        phase_degrees: [0]
+      },
+      quick_stats: {
+        bass_avg_db: 80,
+        midrange_avg_db: 80,
+        treble_avg_db: 80,
+        variance_20_200hz_db: 4,
+        variance_200_2000hz_db: 3,
+        variance_2000_20000hz_db: 2
+      },
+      data_quality: { confidence: 'high' as const, warnings: [] },
+      parsed_file_metadata: { measurement_name: 'Test' }
+    };
+
+    const result = analyzePostOnly(mockMeasurement);
+    expect(result.mode).toBe('post_only_heuristic');
+    expect(result.confidence).toBe('medium');
+    expect(result.glm_successes).toHaveLength(0); // Cannot determine without baseline
   });
 });
