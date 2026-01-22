@@ -12,6 +12,7 @@ export {
   updateSession,
   listActiveSessions,
   endSession,
+  clearAllSessions,
 } from './session-state.js';
 
 export {
