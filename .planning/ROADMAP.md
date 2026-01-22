@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Testing Infrastructure** - Comprehensive test coverage and robustness
 - [x] **Phase 3: Calibration Setup Tools** - Gain staging and level calibration
 - [x] **Phase 4: Measurement Workflow + Sessions** - Systematic measurement with session state
-- [ ] **Phase 5: Analysis & Interpretation** - Plain language room analysis
+- [x] **Phase 5: Analysis & Interpretation** - Plain language room analysis
 - [ ] **Phase 6: GLM Transparency Layer** - Explain what GLM did/couldn't fix
 - [ ] **Phase 7: Optimization Guidance** - Placement and validation recommendations
 - [ ] **Phase 8: Workflow Orchestration** - Prompts and resources for guided workflows
@@ -153,15 +153,20 @@ Plans:
   3. User sees what GLM couldn't fix (deep nulls, SBIR) with physics explanation
   4. System explains why GLM can only cut, not boost
   5. System detects potential GLM overcorrection artifacts
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- TBD (will be created during planning)
+- [ ] 06-01-PLAN.md — GLM comparison module with proportional thresholds and post-only heuristics
+- [ ] 06-02-PLAN.md — Integrate GLM comparison into analyze-room tool
+- [ ] 06-03-PLAN.md — Unit tests for GLM comparison and integration
 
 **Notes:**
 - Primary differentiator (research: unique value no competitor offers)
 - Addresses research pitfall: Misinterpreting GLM's nulls as failures
 - GLM context already documented in /docs/glm-context.md
+- Proportional thresholds: 50%+ reduction = success (per CONTEXT.md)
+- Context-dependent unchanged thresholds: <1/2/3 dB by issue size
+- Overcorrection detection: bass flatness <2 dB variance below 40 Hz
 
 ### Phase 7: Optimization Guidance
 **Goal**: Data-driven placement recommendations with validation
@@ -216,10 +221,10 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 3. Calibration Setup Tools | 4/4 | Complete | 2026-01-21 |
 | 4. Measurement Workflow + Sessions | 4/4 | Complete | 2026-01-21 |
 | 5. Analysis & Interpretation | 4/4 | Complete | 2026-01-22 |
-| 6. GLM Transparency Layer | 0/TBD | Not started | - |
+| 6. GLM Transparency Layer | 0/3 | Planned | - |
 | 7. Optimization Guidance | 0/TBD | Not started | - |
 | 8. Workflow Orchestration | 0/TBD | Not started | - |
 
 ---
 *Created: 2026-01-21*
-*Last updated: 2026-01-22 (Phase 5 complete)*
+*Last updated: 2026-01-22 (Phase 6 planned)*
