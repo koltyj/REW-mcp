@@ -224,7 +224,7 @@ function generateRecommendations(data: RoomModesData): Recommendation[] {
 /**
  * Calculate overall severity from mode analysis
  */
-function calculateSeverity(data: RoomModesData, peaks: DetectedPeak[]): Severity {
+function calculateSeverity(data: RoomModesData, _peaks: DetectedPeak[]): Severity {
   if (!data.dimensions_provided) {
     // Can't assess without dimensions
     return 'minor';
