@@ -10,20 +10,20 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 4 of 8 (Measurement Workflow + Sessions) — In progress
-Plan: 1 of TBD in current phase
+Plan: 2 of TBD in current phase
 Status: Executing Wave 1
-Last activity: 2026-01-21 — Completed 04-02-PLAN.md
+Last activity: 2026-01-21 — Completed 04-01-PLAN.md
 
 Progress: [██████████] 100% (Phase 1: 4/4 plans)
 Progress: [██████████] 100% (Phase 2: 5/5 plans)
 Progress: [██████████] 100% (Phase 3: 4/4 plans)
-Progress: [██░░░░░░░░] 20% (Phase 4: 1/5 plans estimated)
+Progress: [████░░░░░░] 40% (Phase 4: 2/5 plans estimated)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 14
-- Average duration: 5.1 min
+- Total plans completed: 15
+- Average duration: 4.9 min
 - Total execution time: 1.2 hours
 
 **By Phase:**
@@ -33,10 +33,11 @@ Progress: [██░░░░░░░░] 20% (Phase 4: 1/5 plans estimated)
 | 1 (Core API + MCP Validation) | 4 | 25 min | 6.25 min |
 | 2 (Testing Infrastructure) | 5 | 33 min | 6.6 min |
 | 3 (Calibration & Setup Tools) | 4 | 13 min | 3.25 min |
-| 4 (Measurement Workflow + Sessions) | 1 | 2 min | 2 min |
+| 4 (Measurement Workflow + Sessions) | 2 | 4.5 min | 2.25 min |
 
 **Recent Trend:**
-- Phase 4 Wave 1 in progress (04-02 complete)
+- Phase 4 Wave 1 in progress (04-01, 04-02 complete)
+- 04-01 completed in 2.5 min (session state management)
 - 04-02 completed in 2 min (state machine implementation)
 - 503 total tests, 72% coverage maintained
 
@@ -95,6 +96,11 @@ Recent decisions affecting current work:
 - **03-04:** Test zone boundaries at exact thresholds (-3, -10, -20, -40 dBFS)
 - **03-04:** Use vi.advanceTimersByTimeAsync for async setTimeout testing
 - **03-04:** Test channel mismatch at exactly 3 dB (industry standard)
+- **04-01:** Use native crypto.randomUUID() instead of external UUID library (Node 14.17+ built-in)
+- **04-01:** Map-based module-level storage for in-memory concurrent session isolation
+- **04-01:** Clone-and-merge pattern for updateSession to avoid mutation
+- **04-01:** Sort listActiveSessions by created_at descending (most recent first) for resume UX
+- **04-01:** getSession throws with helpful message suggesting get_status tool
 - **04-02:** Use Record<SequenceStep, SequenceStep[]> for type-safe transition table
 - **04-02:** Throw errors on invalid transitions with descriptive messages
 - **04-02:** Return null from getNextStep when sequence is complete
@@ -119,6 +125,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-21 07:00 UTC
-Stopped at: Completed 04-02-PLAN.md
+Last session: 2026-01-21 19:07 UTC
+Stopped at: Completed 04-01-PLAN.md
 Resume file: None
