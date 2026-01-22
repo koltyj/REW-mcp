@@ -29,6 +29,7 @@ import { executeApiCalibrateSPL, ApiCalibrateSPLInputSchema } from './api-calibr
 import { executeApiCheckLevels, ApiCheckLevelsInputSchema } from './api-check-levels.js';
 import { executeApiMeasurementSession, ApiMeasurementSessionInputSchema } from './api-measurement-session.js';
 import { executeAnalyzeRoom, AnalyzeRoomInputSchema } from './analyze-room.js';
+import { executeOptimizeRoom, OptimizeRoomInputSchema } from './optimize-room.js';
 
 /**
  * Register all tools with the MCP server
@@ -164,6 +165,12 @@ export function registerTools(server: Server): void {
           title: 'Measurement Session Workflow',
           description: 'Guided L/R/Sub measurement workflow with session state. Actions: start_session (create new), measure (trigger measurement), get_status (check progress), stop_session (end). Sessions persist across tool calls and can be resumed. REW Pro license required for automated measurements.',
           inputSchema: zodToJsonSchema(ApiMeasurementSessionInputSchema)
+        },
+        {
+          name: 'rew.optimize_room',
+          title: 'Room Optimization Guidance',
+          description: 'Get placement recommendations, validate adjustments, and track optimization progress. Actions: get_recommendation (next issue to fix), validate_adjustment (check if change helped), check_progress (overall status toward +-3dB target). One recommendation at a time for scientific approach.',
+          inputSchema: zodToJsonSchema(OptimizeRoomInputSchema)
         }
       ]
     };
@@ -259,6 +266,10 @@ export function registerTools(server: Server): void {
 
         case 'rew.analyze_room':
           result = await executeAnalyzeRoom(args as any);
+          break;
+
+        case 'rew.optimize_room':
+          result = await executeOptimizeRoom(args as any);
           break;
 
         default:
