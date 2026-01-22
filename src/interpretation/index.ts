@@ -38,3 +38,13 @@ export {
   type BandSymmetry,
   type LRSymmetryData
 } from './lr-symmetry.js';
+
+// GLM Comparison (Phase 6)
+export {
+  compareGLMCalibration,
+  analyzePostOnly,
+  detectOvercorrection,
+  detectOvercorrectionWithComparison,
+  generateGLMSummary,
+  type GLMComparisonResult
+} from './glm-comparison.js';
