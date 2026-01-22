@@ -5,11 +5,11 @@
 See: .planning/PROJECT.md (updated 2026-01-21)
 
 **Core value:** Claude can autonomously measure, interpret, and guide fixes for room acoustics — turning raw frequency response data into actionable placement and treatment recommendations.
-**Current focus:** Phase 5 - Analysis & Interpretation
+**Current focus:** Phase 6 - GLM Transparency Layer
 
 ## Current Position
 
-Phase: 5 of 8 (Analysis & Interpretation) — Complete
+Phase: 6 of 8 (GLM Transparency Layer) — Ready to plan
 Plan: 4 of 4 in current phase
 Status: Phase complete
 Last activity: 2026-01-22 — Completed 05-04-PLAN.md

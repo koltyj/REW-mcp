@@ -51,14 +51,14 @@ Systematic measurement sequence with organization.
 
 Plain language room analysis.
 
-- [ ] **ANLZ-01**: Room mode identification with frequency and severity
-- [ ] **ANLZ-02**: Room mode correlation with room dimensions (if provided)
-- [ ] **ANLZ-03**: L/R symmetry analysis with deviation percentage
-- [ ] **ANLZ-04**: Sub integration analysis (phase, level, timing)
-- [ ] **ANLZ-05**: Detect sub phase inversion (near 180 degrees at crossover)
-- [ ] **ANLZ-06**: Plain language interpretation of frequency response issues
-- [ ] **ANLZ-07**: Problem prioritization (what to fix first)
-- [ ] **ANLZ-08**: SBIR detection with position-based explanation
+- [x] **ANLZ-01**: Room mode identification with frequency and severity
+- [x] **ANLZ-02**: Room mode correlation with room dimensions (if provided)
+- [x] **ANLZ-03**: L/R symmetry analysis with deviation percentage
+- [x] **ANLZ-04**: Sub integration analysis (phase, level, timing)
+- [x] **ANLZ-05**: Detect sub phase inversion (near 180 degrees at crossover)
+- [x] **ANLZ-06**: Plain language interpretation of frequency response issues
+- [x] **ANLZ-07**: Problem prioritization (what to fix first)
+- [x] **ANLZ-08**: SBIR detection with position-based explanation
 
 ### GLM Transparency (Milestone 2)
 
@@ -152,27 +152,27 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FNDN-12 | Phase 2 | Complete |
 | FNDN-13 | Phase 2 | Complete |
 | FNDN-14 | Phase 2 | Complete |
-| SETV-01 | Phase 3 | Pending |
-| SETV-02 | Phase 3 | Pending |
-| SETV-03 | Phase 3 | Pending |
-| SETV-04 | Phase 3 | Pending |
-| SETV-05 | Phase 3 | Pending |
-| SETV-06 | Phase 3 | Pending |
-| MEAS-01 | Phase 4 | Pending |
-| MEAS-02 | Phase 4 | Pending |
-| MEAS-03 | Phase 4 | Pending |
-| MEAS-04 | Phase 4 | Pending |
-| MEAS-05 | Phase 4 | Pending |
-| MEAS-06 | Phase 4 | Pending |
-| MEAS-07 | Phase 4 | Pending |
-| ANLZ-01 | Phase 5 | Pending |
-| ANLZ-02 | Phase 5 | Pending |
-| ANLZ-03 | Phase 5 | Pending |
-| ANLZ-04 | Phase 5 | Pending |
-| ANLZ-05 | Phase 5 | Pending |
-| ANLZ-06 | Phase 5 | Pending |
-| ANLZ-07 | Phase 5 | Pending |
-| ANLZ-08 | Phase 5 | Pending |
+| SETV-01 | Phase 3 | Complete |
+| SETV-02 | Phase 3 | Complete |
+| SETV-03 | Phase 3 | Complete |
+| SETV-04 | Phase 3 | Complete |
+| SETV-05 | Phase 3 | Complete |
+| SETV-06 | Phase 3 | Complete |
+| MEAS-01 | Phase 4 | Complete |
+| MEAS-02 | Phase 4 | Complete |
+| MEAS-03 | Phase 4 | Complete |
+| MEAS-04 | Phase 4 | Complete |
+| MEAS-05 | Phase 4 | Complete |
+| MEAS-06 | Phase 4 | Complete |
+| MEAS-07 | Phase 4 | Complete |
+| ANLZ-01 | Phase 5 | Complete |
+| ANLZ-02 | Phase 5 | Complete |
+| ANLZ-03 | Phase 5 | Complete |
+| ANLZ-04 | Phase 5 | Complete |
+| ANLZ-05 | Phase 5 | Complete |
+| ANLZ-06 | Phase 5 | Complete |
+| ANLZ-07 | Phase 5 | Complete |
+| ANLZ-08 | Phase 5 | Complete |
 | GLM-01 | Phase 6 | Pending |
 | GLM-02 | Phase 6 | Pending |
 | GLM-03 | Phase 6 | Pending |
