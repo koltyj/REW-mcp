@@ -25,12 +25,19 @@ import {
   interpretLRSymmetry,
   type LRSymmetryData
 } from '../interpretation/lr-symmetry.js';
+import {
+  compareGLMCalibration,
+  analyzePostOnly,
+  generateGLMSummary,
+  type GLMComparisonResult
+} from '../interpretation/glm-comparison.js';
 import { detectPeaks, detectNulls } from '../analysis/peaks-nulls.js';
 import { analyzeSubIntegration } from '../analysis/sub-integration.js';
 
 // Input schema
 export const AnalyzeRoomInputSchema = z.object({
-  measurement_id: z.string().describe('Primary measurement for peaks/nulls analysis'),
+  measurement_id: z.string().describe('Primary (post-GLM) measurement for analysis'),
+  pre_measurement_id: z.string().optional().describe('Pre-GLM measurement for calibration comparison - if omitted, post-only heuristics are used'),
   left_measurement_id: z.string().optional().describe('Left channel measurement for L/R symmetry'),
   right_measurement_id: z.string().optional().describe('Right channel measurement for L/R symmetry'),
   sub_measurement_id: z.string().optional().describe('Subwoofer measurement for integration analysis'),
@@ -78,6 +85,11 @@ export interface AnalyzeRoomResult {
       data: LRSymmetryData;
       severity: string;
       confidence: string;
+    };
+    glm_comparison?: {
+      summary: string;
+      data: GLMComparisonResult;
+      confidence: 'high' | 'medium' | 'low';
     };
   };
 }
@@ -230,6 +242,57 @@ export async function executeAnalyzeRoom(input: AnalyzeRoomInput): Promise<ToolR
       });
     }
 
+    // 5. GLM Comparison Analysis (always run - full or heuristic mode)
+    if (validated.pre_measurement_id) {
+      // Full comparison mode
+      const preMeasurement = measurementStore.get(validated.pre_measurement_id);
+      if (!preMeasurement) {
+        return {
+          status: 'error',
+          error_type: 'measurement_not_found',
+          message: `Pre-GLM measurement '${validated.pre_measurement_id}' not found`
+        };
+      }
+
+      const glmComparison = compareGLMCalibration(preMeasurement, primaryMeasurement);
+
+      analysisSections.glm_comparison = {
+        summary: generateGLMSummary(glmComparison),
+        data: glmComparison,
+        confidence: 'high'
+      };
+
+      // Collect issues from GLM persistent problems for prioritization
+      glmComparison.glm_persistent.forEach(persistent => {
+        allIssues.push({
+          issue: persistent.issue,
+          severity: persistent.severity as any, // GLMBeyondScope uses string
+          fixability: 'placement', // Most GLM-unfixable issues benefit from placement
+          category: 'glm_beyond_scope'
+        });
+      });
+
+    } else {
+      // Post-only heuristic mode
+      const glmHeuristic = analyzePostOnly(primaryMeasurement);
+
+      analysisSections.glm_comparison = {
+        summary: generateGLMSummary(glmHeuristic),
+        data: glmHeuristic,
+        confidence: 'medium'
+      };
+
+      // Collect issues from heuristic persistent problems
+      glmHeuristic.glm_persistent.forEach(persistent => {
+        allIssues.push({
+          issue: persistent.issue,
+          severity: persistent.severity as any,
+          fixability: 'placement',
+          category: 'glm_beyond_scope'
+        });
+      });
+    }
+
     // Prioritize all collected issues
     const prioritized: PrioritizedIssue[] = prioritizeIssues(allIssues);
 
@@ -291,6 +354,7 @@ function generateOverallSummary(
   if (sections.room_modes) sectionNames.push('room modes');
   if (sections.sub_integration) sectionNames.push('sub integration');
   if (sections.lr_symmetry) sectionNames.push('L/R symmetry');
+  if (sections.glm_comparison) sectionNames.push('GLM calibration transparency');
 
   let summary = `Comprehensive room analysis completed covering: ${sectionNames.join(', ')}. `;
 
@@ -328,6 +392,19 @@ function generateOverallSummary(
     }
   }
 
+  if (sections.glm_comparison) {
+    const glmData = sections.glm_comparison.data;
+    if (glmData.mode === 'full_comparison' && glmData.glm_successes.length > 0) {
+      summary += `GLM successfully corrected ${glmData.glm_successes.length} issue(s). `;
+    }
+    if (glmData.glm_persistent.length > 0) {
+      summary += `${glmData.glm_persistent.length} issue(s) remain beyond GLM scope - positioning recommended. `;
+    }
+    if (glmData.overcorrection_indicators.bass_flatness.detected) {
+      summary += `Note: Very flat sub-bass detected - some prefer slight natural variation. `;
+    }
+  }
+
   return summary;
 }
 
@@ -343,6 +420,14 @@ function determineOverallSeverity(
   if (sections.room_modes) severities.push(sections.room_modes.severity as any);
   if (sections.sub_integration) severities.push(sections.sub_integration.severity as any);
   if (sections.lr_symmetry) severities.push(sections.lr_symmetry.severity as any);
+
+  // Map GLM persistent issue count to severity
+  if (sections.glm_comparison) {
+    const persistentCount = sections.glm_comparison.data.glm_persistent.length;
+    if (persistentCount >= 3) severities.push('significant');
+    else if (persistentCount >= 2) severities.push('moderate');
+    else if (persistentCount >= 1) severities.push('minor');
+  }
 
   // Worst severity drives overall
   const severityOrder = ['negligible', 'minor', 'moderate', 'significant'];
