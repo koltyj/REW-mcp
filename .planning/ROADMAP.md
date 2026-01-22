@@ -179,15 +179,21 @@ Plans:
   4. Pre/post comparison quantifies improvement after adjustments
   5. System validates that adjustments actually improved response
   6. Success criteria evaluation shows progress toward target (+-3dB 40-200Hz)
-**Plans**: TBD
+**Plans:** 4 plans
 
 Plans:
-- TBD (will be created during planning)
+- [ ] 07-01-PLAN.md — Recommendation generation module (monitors, sub, listening position)
+- [ ] 07-02-PLAN.md — Validation module (pre/post comparison, success criteria)
+- [ ] 07-03-PLAN.md — MCP optimization tool (rew.optimize_room with 3 actions)
+- [ ] 07-04-PLAN.md — Unit tests for Phase 7 optimization modules
 
 **Notes:**
 - Competitive differentiator (research: data-driven position adjustments)
-- Research flag: Room dimensions input method (defer to implementation)
-- Addresses research pitfall: Subwoofer phase inversion
+- One recommendation at a time (scientific approach per CONTEXT.md)
+- Directional guidance only (not exact distances)
+- Sub gets more detailed recommendations (phase, corner loading, crossover)
+- Zone-based progress: good (<=3dB), acceptable (<=5dB), needs_work (>5dB)
+- Worsened adjustments suggest "try opposite direction"
 
 ### Phase 8: Workflow Orchestration
 **Goal**: Guided step-by-step calibration via MCP Prompts and Resources
@@ -222,9 +228,9 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 4. Measurement Workflow + Sessions | 4/4 | Complete | 2026-01-21 |
 | 5. Analysis & Interpretation | 4/4 | Complete | 2026-01-22 |
 | 6. GLM Transparency Layer | 3/3 | Complete | 2026-01-22 |
-| 7. Optimization Guidance | 0/TBD | Not started | - |
+| 7. Optimization Guidance | 0/4 | Planned | - |
 | 8. Workflow Orchestration | 0/TBD | Not started | - |
 
 ---
 *Created: 2026-01-21*
-*Last updated: 2026-01-22 (Phase 6 complete)*
+*Last updated: 2026-01-22 (Phase 7 planned)*
