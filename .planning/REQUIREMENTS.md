@@ -64,11 +64,11 @@ Plain language room analysis.
 
 Explain what GLM did and couldn't do.
 
-- [ ] **GLM-01**: Interpret GLM calibration results vs pre-calibration baseline
-- [ ] **GLM-02**: Identify what GLM successfully corrected
-- [ ] **GLM-03**: Identify issues GLM couldn't fix (deep nulls, SBIR)
-- [ ] **GLM-04**: Explain why GLM can cut but not boost (physics limitation)
-- [ ] **GLM-05**: Detect potential GLM overcorrection artifacts
+- [x] **GLM-01**: Interpret GLM calibration results vs pre-calibration baseline
+- [x] **GLM-02**: Identify what GLM successfully corrected
+- [x] **GLM-03**: Identify issues GLM couldn't fix (deep nulls, SBIR)
+- [x] **GLM-04**: Explain why GLM can cut but not boost (physics limitation)
+- [x] **GLM-05**: Detect potential GLM overcorrection artifacts
 
 ### Optimization Guidance (Milestone 2)
 
@@ -173,11 +173,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ANLZ-06 | Phase 5 | Complete |
 | ANLZ-07 | Phase 5 | Complete |
 | ANLZ-08 | Phase 5 | Complete |
-| GLM-01 | Phase 6 | Pending |
-| GLM-02 | Phase 6 | Pending |
-| GLM-03 | Phase 6 | Pending |
-| GLM-04 | Phase 6 | Pending |
-| GLM-05 | Phase 6 | Pending |
+| GLM-01 | Phase 6 | Complete |
+| GLM-02 | Phase 6 | Complete |
+| GLM-03 | Phase 6 | Complete |
+| GLM-04 | Phase 6 | Complete |
+| GLM-05 | Phase 6 | Complete |
 | OPTM-01 | Phase 7 | Pending |
 | OPTM-02 | Phase 7 | Pending |
 | OPTM-03 | Phase 7 | Pending |

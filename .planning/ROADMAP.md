@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Calibration Setup Tools** - Gain staging and level calibration
 - [x] **Phase 4: Measurement Workflow + Sessions** - Systematic measurement with session state
 - [x] **Phase 5: Analysis & Interpretation** - Plain language room analysis
-- [ ] **Phase 6: GLM Transparency Layer** - Explain what GLM did/couldn't fix
+- [x] **Phase 6: GLM Transparency Layer** - Explain what GLM did/couldn't fix
 - [ ] **Phase 7: Optimization Guidance** - Placement and validation recommendations
 - [ ] **Phase 8: Workflow Orchestration** - Prompts and resources for guided workflows
 
@@ -156,9 +156,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 06-01-PLAN.md — GLM comparison module with proportional thresholds and post-only heuristics
-- [ ] 06-02-PLAN.md — Integrate GLM comparison into analyze-room tool
-- [ ] 06-03-PLAN.md — Unit tests for GLM comparison and integration
+- [x] 06-01-PLAN.md — GLM comparison module with proportional thresholds and post-only heuristics
+- [x] 06-02-PLAN.md — Integrate GLM comparison into analyze-room tool
+- [x] 06-03-PLAN.md — Unit tests for GLM comparison and integration
 
 **Notes:**
 - Primary differentiator (research: unique value no competitor offers)
@@ -221,10 +221,10 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 3. Calibration Setup Tools | 4/4 | Complete | 2026-01-21 |
 | 4. Measurement Workflow + Sessions | 4/4 | Complete | 2026-01-21 |
 | 5. Analysis & Interpretation | 4/4 | Complete | 2026-01-22 |
-| 6. GLM Transparency Layer | 0/3 | Planned | - |
+| 6. GLM Transparency Layer | 3/3 | Complete | 2026-01-22 |
 | 7. Optimization Guidance | 0/TBD | Not started | - |
 | 8. Workflow Orchestration | 0/TBD | Not started | - |
 
 ---
 *Created: 2026-01-21*
-*Last updated: 2026-01-22 (Phase 6 planned)*
+*Last updated: 2026-01-22 (Phase 6 complete)*
