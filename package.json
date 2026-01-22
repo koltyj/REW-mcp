@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "MCP server for Room EQ Wizard measurement analysis. Enables AI-assisted speaker placement decisions and validation of Genelec GLM calibration.",
   "type": "module",
-  "mcpName": "io.github.koltonjacobs/rew-mcp",
+  "mcpName": "io.github.koltyj/rew-mcp",
   "bin": {
     "rew-mcp": "dist/index.js"
   },
@@ -44,12 +44,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/koltonjacobs/rew-mcp.git"
+    "url": "git+https://github.com/koltyj/rew-mcp.git"
   },
   "bugs": {
-    "url": "https://github.com/koltonjacobs/rew-mcp/issues"
+    "url": "https://github.com/koltyj/rew-mcp/issues"
   },
-  "homepage": "https://github.com/koltonjacobs/rew-mcp#readme",
+  "homepage": "https://github.com/koltyj/rew-mcp#readme",
   "engines": {
     "node": ">=18.0.0"
   },

@@ -1,101 +1,57 @@
+<div align="center">
+
 # REW MCP Server
 
-An MCP (Model Context Protocol) server that exposes Room EQ Wizard (REW) measurement data and analysis tools to LLMs, enabling AI-assisted speaker placement decisions and validation of Genelec GLM calibration.
+**AI-powered room acoustics analysis for studio monitoring**
 
-## Features
+[![npm version](https://img.shields.io/npm/v/rew-mcp.svg?style=flat-square)](https://www.npmjs.com/package/rew-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen?style=flat-square&logo=node.js)](https://nodejs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
+[![CI](https://img.shields.io/github/actions/workflow/status/koltyj/rew-mcp/ci.yml?style=flat-square&label=CI)](https://github.com/koltyj/rew-mcp/actions)
+[![Coverage](https://img.shields.io/badge/coverage-74.85%25-yellow?style=flat-square)](https://github.com/koltyj/rew-mcp/actions)
 
-- 📊 **Parse REW exports** - Frequency response and impulse response text files
-- 🔍 **Detect room modes** - Identify peaks, nulls, and correlate with theoretical modes
-- 📉 **Analyze decay times** - Find excessive ringing and resonances
-- 🔊 **Reflection analysis** - Detect early reflections and comb filtering
-- ⚖️ **Compare measurements** - Pre/post GLM, placement optimization, L/R symmetry
-- 🎯 **GLM-aware interpretation** - Understand what Genelec GLM can and cannot fix
-- 🤖 **AI-assisted decision support** - Get structured recommendations with confidence levels
+[Getting Started](#getting-started) •
+[Documentation](#documentation) •
+[Tools](#available-tools) •
+[Contributing](#contributing)
 
-## What This Is
+</div>
 
-The MCP server **does not control REW in real time**. It:
+---
 
-- Ingests, parses, compares, and analyzes REW exports
-- Provides structured insights to an LLM (Claude/Copilot)
-- Enables AI-assisted decision support for room acoustics
+## What is this?
 
-## Primary Use Cases
+REW MCP Server is a [Model Context Protocol](https://modelcontextprotocol.io) server that enables Claude (and other LLMs) to analyze room acoustics using [Room EQ Wizard](https://www.roomeqwizard.com) data. It transforms raw frequency response measurements into actionable recommendations for speaker placement and acoustic treatment.
 
-1. **Speaker placement optimization** - Compare measurements from different speaker positions
-2. **Pre- vs post-GLM calibration comparison** - Validate what Genelec GLM addressed
-3. **Room mode and null identification** - Detect problematic frequencies
-4. **Decision support** - Move speaker vs trust GLM vs treat room
+**Key capabilities:**
 
-## Non-Goals
+- 🎯 **Guided calibration workflows** — Step-by-step mic gain staging and monitor level calibration
+- 📊 **Plain language analysis** — Understand "what's wrong and why" instead of just looking at graphs
+- 🔊 **GLM transparency** — See what Genelec GLM fixed and what it couldn't
+- 📍 **Placement optimization** — Data-driven speaker and listening position recommendations
+- ✅ **Validation** — Confirm adjustments actually improved your response
 
-| Not Supported | Reason |
-|---------------|--------|
-| Real-time audio control | System is analysis-only |
-| DSP or EQ application | Human executes all changes |
-| Replace Genelec GLM | Complements, doesn't replace |
-| Automatic "magic fixes" | Advises only, human decides |
+## Why use this?
 
-## Documentation
+Traditional room calibration is a "run and hope" process. You measure, apply GLM correction, and trust the result. This server changes that by:
 
-### Core Documentation
+1. **Explaining the problems** — Room modes, SBIR, symmetry issues in plain language
+2. **Showing GLM's work** — What the DSP corrected vs what it couldn't fix (physics limitations)
+3. **Guiding improvements** — One recommendation at a time, measure after each change
+4. **Validating results** — Quantify improvements toward your target response
 
-| Document | Purpose |
-|----------|---------|
-| [Architecture](docs/architecture.md) | System design and data flow |
-| [File Formats](docs/file-formats.md) | REW export format specifications |
-| [Analysis Rules](docs/analysis-rules.md) | Deterministic analysis algorithms |
-| [GLM Context](docs/glm-context.md) | Genelec GLM behavior reference |
-| [Guardrails](docs/guardrails.md) | Safety constraints and quality rules |
-| [Examples](docs/examples.md) | Usage patterns and workflows |
-| [References](docs/references.md) | External documentation sources |
+## Getting Started
 
-### MCP Protocol Documentation
-
-| Document | Purpose |
-|----------|---------|
-| [MCP Server Config](docs/mcp-server-config.md) | Server capabilities and initialization |
-| [Resources](docs/resources.md) | MCP resource definitions for data access |
-| [Prompts](docs/prompts.md) | MCP prompt templates for workflows |
-
-### Tool Specifications
-
-| Tool | Purpose |
-|------|---------|
-| [rew.ingest_measurement](docs/tools/ingest-measurement.md) | Parse and normalize REW exports |
-| [rew.compare_measurements](docs/tools/compare-measurements.md) | Compare two or more measurements |
-| [rew.analyze_room_modes](docs/tools/analyze-room-modes.md) | Detect peaks, nulls, and modes |
-| [rew.analyze_decay](docs/tools/analyze-decay.md) | Waterfall and decay interpretation |
-| [rew.analyze_impulse](docs/tools/analyze-impulse.md) | Impulse response and ETC analysis |
-| [rew.interpret_with_glm_context](docs/tools/interpret-with-glm-context.md) | GLM-aware result interpretation |
-
-## Installation
-
-### Running with npx (Recommended)
-
-No installation required - run directly:
+### Quick Install
 
 ```bash
-npx -y rew-mcp
+npx rew-mcp
 ```
 
-### Manual Installation
+### Claude Desktop
 
-Install globally via npm:
-
-```bash
-npm install -g rew-mcp
-```
-
-Then run:
-
-```bash
-rew-mcp
-```
-
-### Usage with Claude Desktop
-
-Add this to your `claude_desktop_config.json`:
+Add to your `claude_desktop_config.json`:
 
 ```json
 {
@@ -108,158 +64,94 @@ Add this to your `claude_desktop_config.json`:
 }
 ```
 
-### Usage with Cursor
+### Cursor
 
-For quick installation, click the installation button below:
+[![Install in Cursor](https://img.shields.io/badge/Cursor-Install_MCP-black?style=flat-square&logo=cursor)](https://cursor.com/install-mcp?name=rew-mcp&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsInJldy1tY3AiXX0%3D)
 
-[![Install with NPX in Cursor](https://img.shields.io/badge/Cursor-Install_MCP-black?style=flat-square&logo=cursor&logoColor=white)](https://cursor.com/install-mcp?name=rew-mcp&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsInJldy1tY3AiXX0%3D)
+Or manually: Settings → Features → MCP Servers → Add `npx -y rew-mcp`
 
-**Manual Installation for Cursor v0.48.6+**
+### VS Code
 
-1. Open Cursor Settings
-2. Go to Features > MCP Servers
-3. Click "+ Add new global MCP server"
-4. Enter the following code:
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_MCP-0098FF?style=flat-square&logo=visualstudiocode)](https://insiders.vscode.dev/redirect/mcp/install?name=rew-mcp&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22rew-mcp%22%5D%7D)
 
-```json
-{
-  "mcpServers": {
-    "rew-mcp": {
-      "command": "npx",
-      "args": ["-y", "rew-mcp"]
-    }
-  }
-}
-```
-
-**For Cursor v0.45.6**
-
-1. Open Cursor Settings
-2. Go to Features > MCP Servers
-3. Click "+ Add New MCP Server"
-4. Enter:
-   - Name: "rew-mcp"
-   - Type: "command"
-   - Command: `npx -y rew-mcp`
-
-### Usage with VS Code
-
-For quick installation, click the installation button below:
-
-[![Install with NPX in VS Code](https://img.shields.io/badge/VS_Code-NPM-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=rew-mcp&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22rew-mcp%22%5D%7D)
-
-Or manually add to your user settings (Ctrl + Shift + P → "Preferences: Open User Settings (JSON)"):
-
-```json
-{
-  "mcp": {
-    "servers": {
-      "rew-mcp": {
-        "command": "npx",
-        "args": ["-y", "rew-mcp"]
-      }
-    }
-  }
-}
-```
-
-Alternatively, create `.vscode/mcp.json` in your workspace:
-
-```json
-{
-  "servers": {
-    "rew-mcp": {
-      "command": "npx",
-      "args": ["-y", "rew-mcp"]
-    }
-  }
-}
-```
-
-### Usage with Windsurf
-
-Add this to your `./codeium/windsurf/model_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "rew-mcp": {
-      "command": "npx",
-      "args": ["-y", "rew-mcp"]
-    }
-  }
-}
-```
-
-### Installing via Smithery
-
-To install REW MCP for Claude Desktop automatically via [Smithery](https://smithery.ai):
+### Smithery
 
 ```bash
 npx -y @smithery/cli install rew-mcp --client claude
 ```
 
-## Quick Start Workflow
+## Requirements
 
-```
-1. User measures with REW → exports data files
-2. MCP server ingests measurement files
-3. LLM calls analysis tools
-4. LLM explains results to user
-5. User makes physical changes
-6. Repeat until satisfied
-```
+- **Node.js 18+**
+- **Room EQ Wizard** running with `-api` flag (`localhost:4735`)
+- **Measurement microphone** (calibrated preferred)
 
 ## Available Tools
 
-| Tool | Purpose | Typical Use |
-|------|---------|-------------|
-| `rew.ingest_measurement` | Parse and store REW exports | First step - load your measurement data |
-| `rew.compare_measurements` | Compare 2+ measurements | Compare placements or pre/post GLM |
-| `rew.analyze_room_modes` | Detect peaks, nulls, modes | Identify room acoustic issues |
-| `rew.analyze_decay` | Analyze decay times | Check for excessive ringing |
-| `rew.analyze_impulse` | Detect early reflections | Find reflection sources |
-| `rew.interpret_with_glm_context` | GLM-aware interpretation | Understand GLM's effectiveness |
+### Measurement & Setup
 
-See [Tool Specifications](#tool-specifications) section below for detailed documentation.
+| Tool | Description |
+|------|-------------|
+| `rew.api_connect` | Connect to REW API |
+| `rew.api_check_levels` | Check mic input levels, detect clipping |
+| `rew.api_calibrate_spl` | Calibrate monitor level to target SPL |
+| `rew.api_measurement_session` | Guided L/R/Sub measurement sequence |
 
-## Usage Example
+### Analysis
 
-```typescript
-// 1. Ingest a pre-GLM measurement
-const preGLM = await rew.ingest_measurement({
-  file_contents: fs.readFileSync('left_speaker_pre_glm.txt', 'utf-8'),
-  metadata: {
-    speaker_id: 'L',
-    condition: 'pre_glm'
-  }
-});
+| Tool | Description |
+|------|-------------|
+| `rew.analyze_room` | Full room analysis with prioritized recommendations |
+| `rew.api_parse_text` | Parse REW text exports |
 
-// 2. Ingest post-GLM measurement
-const postGLM = await rew.ingest_measurement({
-  file_contents: fs.readFileSync('left_speaker_post_glm.txt', 'utf-8'),
-  metadata: {
-    speaker_id: 'L',
-    condition: 'post_glm'
-  }
-});
+### Optimization
 
-// 3. Compare the measurements
-const comparison = await rew.compare_measurements({
-  measurement_ids: [preGLM.measurement_id, postGLM.measurement_id],
-  comparison_type: 'before_after',
-  reference_measurement_id: preGLM.measurement_id
-});
+| Tool | Description |
+|------|-------------|
+| `rew.optimize_room` | Get placement recommendations, validate adjustments |
 
-// 4. Interpret with GLM context
-const interpretation = await rew.interpret_with_glm_context({
-  comparison_id: comparison.comparison_id
-});
+### MCP Prompts
+
+| Prompt | Description |
+|--------|-------------|
+| `rew_calibration_full` | Complete calibration workflow |
+| `rew_gain_staging` | Standalone level calibration |
+| `rew_measurement_workflow` | Session-aware L/R/Sub sequence |
+| `rew_optimization_workflow` | Iterative placement optimization |
+
+### MCP Resources
+
+| URI Scheme | Description |
+|------------|-------------|
+| `session://{id}` | Session state and measurements |
+| `measurement://{id}` | Full frequency response data |
+| `recommendations://{id}` | Active recommendations |
+| `history://{id}` | Measurement history |
+
+## Example Workflow
+
+```
+1. Start REW with -api flag
+2. "Help me calibrate my studio monitors"
+3. Claude guides you through:
+   - Checking mic levels
+   - Calibrating to 85 dB SPL
+   - Measuring L, R, Sub speakers
+   - Analyzing room acoustics
+   - Optimizing placement
+   - Validating improvements
 ```
 
-## Development
+## Documentation
 
-Build from source:
+| Document | Description |
+|----------|-------------|
+| [Architecture](docs/architecture.md) | System design and data flow |
+| [GLM Context](docs/glm-context.md) | How Genelec GLM works |
+| [Analysis Rules](docs/analysis-rules.md) | Detection algorithms |
+| [File Formats](docs/file-formats.md) | REW export specifications |
+
+## Development
 
 ```bash
 # Install dependencies
@@ -268,68 +160,37 @@ npm install
 # Build
 npm run build
 
-# Run locally
-npm start
-
 # Run tests
 npm test
 
-# Watch mode for development
+# Run with coverage
+npm run test:coverage
+
+# Watch mode
 npm run dev
 ```
 
-## Success Criteria
-
-The system is successful if it can:
-
-- Clearly state "Placement B is objectively better than Placement A"
-- Explain why GLM did or did not fix an issue
-- Reduce guesswork without pretending certainty
-- Respect Genelec GLM's design philosophy
-
-## Core Principle
-
-**Epistemic honesty over false confidence.**
-
-The system must:
-- Never hallucinate causes
-- Always mark uncertainty
-- Prefer "likely" over "certain"
-- Defer final judgment to humans
-
-## MCP Protocol Compliance
-
-This server implements **MCP Protocol Version 2025-06-18**.
-
-| Feature | Status |
-|---------|--------|
-| Tools (with output schemas) | ✅ Supported |
-| Resources | ✅ Supported |
-| Prompts | ✅ Supported |
-| Logging | ✅ Supported |
-| Transport: stdio | ✅ Primary |
-| Transport: HTTP+SSE | ⬜ Optional |
-
-## External References
-
-- **MCP Specification**: https://modelcontextprotocol.io/specification/2025-06-18
-- **MCP TypeScript SDK**: https://github.com/modelcontextprotocol/typescript-sdk
-- **MCP Python SDK**: https://github.com/modelcontextprotocol/python-sdk
-- **REW API Documentation**: https://www.roomeqwizard.com/help/help_en-GB/html/api.html
-- **REW File Export Documentation**: https://www.roomeqwizard.com/help/help_en-GB/html/file.html
-- **Genelec GLM**: https://www.genelec.com/glm
-
 ## Contributing
 
-Contributions are welcome! Please:
+Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md).
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Run `npm test` to verify
-6. Submit a pull request
+```bash
+# Fork the repo, then:
+git checkout -b feature/amazing-feature
+npm test
+git commit -m 'feat: add amazing feature'
+git push origin feature/amazing-feature
+# Open a Pull Request
+```
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+[MIT](LICENSE) © Kolton Jacobs
+
+---
+
+<div align="center">
+
+**[Documentation](docs/)** • **[Changelog](CHANGELOG.md)** • **[Report Bug](https://github.com/koltyj/rew-mcp/issues)** • **[Request Feature](https://github.com/koltyj/rew-mcp/issues)**
+
+</div>

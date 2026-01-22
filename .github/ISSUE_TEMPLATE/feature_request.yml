@@ -1,0 +1,63 @@
+name: Feature Request
+description: Suggest a new feature or enhancement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! Please describe what you'd like to see.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem does this feature solve? What workflow is it enabling?
+      placeholder: I'm trying to... but currently I have to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How would you like this to work?
+      placeholder: It would be great if the server could...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any other approaches you've thought about?
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      description: What area does this feature relate to?
+      options:
+        - New MCP Tool
+        - New MCP Prompt
+        - New MCP Resource
+        - Analysis Enhancement
+        - REW API Integration
+        - Documentation
+        - Developer Experience
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Screenshots, measurement files, or other helpful context
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I would be willing to help implement this feature
