@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 8 of 8 (Workflow Orchestration) — In Progress
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-01-22 — Completed 08-01-PLAN.md (MCP Resources)
+Last activity: 2026-01-22 — Completed 08-02-PLAN.md (MCP Prompts)
 
 Progress: [██████████] 100% (Phase 1: 4/4 plans)
 Progress: [██████████] 100% (Phase 2: 5/5 plans)
@@ -21,14 +21,14 @@ Progress: [██████████] 100% (Phase 4: 4/4 plans)
 Progress: [██████████] 100% (Phase 5: 4/4 plans)
 Progress: [██████████] 100% (Phase 6: 3/3 plans)
 Progress: [██████████] 100% (Phase 7: 4/4 plans)
-Progress: [███░░░░░░░] 33% (Phase 8: 1/3 plans)
+Progress: [██████░░░░] 67% (Phase 8: 2/3 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 29
+- Total plans completed: 30
 - Average duration: 3.5 min
-- Total execution time: 1.83 hours
+- Total execution time: 1.88 hours
 
 **By Phase:**
 
@@ -41,11 +41,11 @@ Progress: [███░░░░░░░] 33% (Phase 8: 1/3 plans)
 | 5 (Analysis & Interpretation) | 4 | 23 min | 5.75 min |
 | 6 (GLM Transparency) | 3 | 10 min | 3.3 min |
 | 7 (Optimization Guidance) | 4 | 21 min | 5.25 min |
-| 8 (Workflow Orchestration) | 1 | 3 min | 3 min |
+| 8 (Workflow Orchestration) | 2 | 6 min | 3 min |
 
 **Recent Trend:**
 - Phase 8 in progress (Workflow Orchestration)
-- 1 plan executed in 3 min
+- 2 plans executed in 6 min
 - Recent average: 3 min per plan (Phase 8)
 
 *Updated after each plan completion*
@@ -164,6 +164,11 @@ Recent decisions affecting current work:
 - **08-01:** Measurement resource returns full frequency response arrays for analysis
 - **08-01:** Recommendations resource uses placeholder structure (full tracking out of scope)
 - **08-01:** History resource attempts to correlate session measurements with measurement store
+- **08-02:** Prompts describe goals and context, not prescriptive tool sequences
+- **08-02:** Session-aware prompts embed session:// resource for immediate context
+- **08-02:** Checkpoints defined for physical actions (volume adjustment, mic positioning, speaker movement)
+- **08-02:** Scientific method enforced: one recommendation at a time, validate with measurement
+- **08-02:** Gain staging is standalone (no session), measurement/optimization require session_id
 
 ### Pending Todos
 
@@ -185,8 +190,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-22 05:12 UTC
-Stopped at: Completed 08-01-PLAN.md (MCP Resources)
+Last session: 2026-01-22 05:18 UTC
+Stopped at: Completed 08-02-PLAN.md (MCP Prompts)
 Resume file: None
 
-**Phase 8 Plan 1 Complete:** MCP Resources capability implemented with session://, measurement://, recommendations://, and history:// URI schemes. Server now declares resources capability.
+**Phase 8 Plan 2 Complete:** MCP Prompts capability implemented with four goal-oriented workflow prompts (rew_calibration_full, rew_gain_staging, rew_measurement_workflow, rew_optimization_workflow). Session-aware prompts embed resources for context.
