@@ -204,16 +204,20 @@ Plans:
   2. Systematic measurement workflow prompt guides complete L/R/Sub sequence
   3. Session state is exposed as MCP resource for progress checking
   4. Measurement history is exposed as MCP resource for comparison
-  5. Session recommendations are exposed as MCP resource for review
-**Plans**: TBD
+  5. Session recommendations is exposed as MCP resource for review
+**Plans:** 3 plans
 
 Plans:
-- TBD (will be created during planning)
+- [ ] 08-01-PLAN.md — MCP Resources infrastructure (session, measurement, recommendations, history)
+- [ ] 08-02-PLAN.md — MCP Prompts for calibration workflows (full, gain staging, measurement, optimization)
+- [ ] 08-03-PLAN.md — Unit tests for resources and prompts modules
 
 **Notes:**
 - Implements MCP Prompt-orchestrated tool composition (research recommendation)
 - Resources enable stateful protocol with stateless tools (architecture pattern)
 - Foundation for iterative measure -> interpret -> suggest -> re-measure loop
+- Goal-oriented prompts (describe objectives, Claude orchestrates tools)
+- URI schemes: session://, measurement://, recommendations://, history://
 
 ## Progress
 
@@ -229,8 +233,8 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 5. Analysis & Interpretation | 4/4 | Complete | 2026-01-22 |
 | 6. GLM Transparency Layer | 3/3 | Complete | 2026-01-22 |
 | 7. Optimization Guidance | 4/4 | Complete | 2026-01-22 |
-| 8. Workflow Orchestration | 0/TBD | Not started | - |
+| 8. Workflow Orchestration | 0/3 | Not started | - |
 
 ---
 *Created: 2026-01-21*
-*Last updated: 2026-01-22 (Phase 7 complete)*
+*Last updated: 2026-01-22 (Phase 8 planned)*
