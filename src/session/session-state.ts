@@ -119,3 +119,10 @@ export function listActiveSessions(): SessionState[] {
 export function endSession(sessionId: string): void {
   activeSessions.delete(sessionId);
 }
+
+/**
+ * Clear all active sessions (for testing)
+ */
+export function clearAllSessions(): void {
+  activeSessions.clear();
+}
