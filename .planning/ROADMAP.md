@@ -107,10 +107,10 @@ Plans:
 **Plans:** 4 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Session state management module (Map-based storage, CRUD operations)
-- [ ] 04-02-PLAN.md — L/R/Sub sequence state machine (transition validation, guidance)
-- [ ] 04-03-PLAN.md — Measurement session MCP tool (start/measure/status/stop actions)
-- [ ] 04-04-PLAN.md — Unit tests for Phase 4 session and tool modules
+- [x] 04-01-PLAN.md — Session state management module (Map-based storage, CRUD operations)
+- [x] 04-02-PLAN.md — L/R/Sub sequence state machine (transition validation, guidance)
+- [x] 04-03-PLAN.md — Measurement session MCP tool (start/measure/status/stop actions)
+- [x] 04-04-PLAN.md — Unit tests for Phase 4 session and tool modules
 
 **Notes:**
 - Implements explicit session management (research recommendation)
@@ -129,14 +129,19 @@ Plans:
   3. Sub integration analysis detects phase issues, level mismatches, and timing problems
   4. SBIR detection explains position-based causes
   5. Problem prioritization tells user what to fix first
-**Plans**: TBD
+**Plans:** 4 plans
 
 Plans:
-- TBD (will be created during planning)
+- [ ] 05-01-PLAN.md — Interpretation core types and prioritization engine
+- [ ] 05-02-PLAN.md — Room modes and peaks/nulls interpretation with SBIR classification
+- [ ] 05-03-PLAN.md — Sub integration and L/R symmetry interpretation
+- [ ] 05-04-PLAN.md — Unified room analysis tool and unit tests
 
 **Notes:**
 - Core LLM value: Plain language interpretation (differentiator)
 - Analysis layer is most solid part of codebase (research finding)
+- Fixability-first prioritization: placement > settings > treatment > unfixable
+- SBIR classification: 60-300 Hz, Q>5, 1-4 ft boundary distance
 
 ### Phase 6: GLM Transparency Layer
 **Goal**: Users understand what GLM calibration did and couldn't fix
@@ -210,11 +215,11 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 2. Testing Infrastructure | 5/5 | Complete | 2026-01-21 |
 | 3. Calibration Setup Tools | 4/4 | Complete | 2026-01-21 |
 | 4. Measurement Workflow + Sessions | 4/4 | Complete | 2026-01-21 |
-| 5. Analysis & Interpretation | 0/TBD | Not started | - |
+| 5. Analysis & Interpretation | 0/4 | Planned | - |
 | 6. GLM Transparency Layer | 0/TBD | Not started | - |
 | 7. Optimization Guidance | 0/TBD | Not started | - |
 | 8. Workflow Orchestration | 0/TBD | Not started | - |
 
 ---
 *Created: 2026-01-21*
-*Last updated: 2026-01-21 (Phase 4 complete)*
+*Last updated: 2026-01-21 (Phase 5 planned)*
