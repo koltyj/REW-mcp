@@ -39,13 +39,13 @@ Guided mic and monitor setup before measurement.
 
 Systematic measurement sequence with organization.
 
-- [ ] **MEAS-01**: Trigger measurement via REW API (or guide manual trigger)
-- [ ] **MEAS-02**: Guided L/R/Sub measurement sequence
-- [ ] **MEAS-03**: Measurement naming convention applied automatically
-- [ ] **MEAS-04**: Organize measurements by session/condition
-- [ ] **MEAS-05**: Session state persists across tool calls
-- [ ] **MEAS-06**: Session can be resumed after disconnect
-- [ ] **MEAS-07**: Multiple concurrent sessions supported
+- [x] **MEAS-01**: Trigger measurement via REW API (or guide manual trigger)
+- [x] **MEAS-02**: Guided L/R/Sub measurement sequence
+- [x] **MEAS-03**: Measurement naming convention applied automatically
+- [x] **MEAS-04**: Organize measurements by session/condition
+- [x] **MEAS-05**: Session state persists across tool calls
+- [x] **MEAS-06**: Session can be resumed after disconnect
+- [x] **MEAS-07**: Multiple concurrent sessions supported
 
 ### Analysis & Interpretation (Milestone 2)
 
