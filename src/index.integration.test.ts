@@ -12,6 +12,9 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { registerTools } from './tools/index.js';
+import { registerResources } from './resources/index.js';
+import { registerPrompts } from './prompts/index.js';
+import { createSession, updateSession, clearAllSessions } from './session/index.js';
 
 // MSW server for mocking REW API
 const mswServer = setupServer();
@@ -546,6 +549,190 @@ describe('MCP Server Integration', () => {
       expect(actionEnum).toContain('status');
       expect(actionEnum).toContain('configure');
       expect(actionEnum).toContain('sweep');
+    });
+  });
+});
+
+/**
+ * MCP Prompts and Resources Integration Tests
+ *
+ * Tests verify MCP capabilities for prompts and resources are properly declared
+ * and handlers function correctly through the MCP protocol.
+ */
+describe('MCP Prompts and Resources Integration', () => {
+  let mcpServer: Server;
+  let mcpClient: Client;
+
+  beforeEach(async () => {
+    clearAllSessions();
+
+    // Create server with full capabilities (matching index.ts)
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+
+    mcpServer = new Server(
+      { name: 'rew-mcp', version: '1.0.0' },
+      {
+        capabilities: {
+          tools: { listChanged: true },
+          prompts: { listChanged: true },
+          resources: { subscribe: true, listChanged: true },
+          logging: {}
+        }
+      }
+    );
+    registerTools(mcpServer);
+    registerResources(mcpServer);
+    registerPrompts(mcpServer);
+    await mcpServer.connect(serverTransport);
+
+    mcpClient = new Client({ name: 'test-client', version: '1.0.0' }, {});
+    await mcpClient.connect(clientTransport);
+  });
+
+  afterEach(() => {
+    clearAllSessions();
+  });
+
+  describe('Prompts Capability', () => {
+    it('ListPromptsRequest returns all 4 prompts', async () => {
+      const { prompts } = await mcpClient.listPrompts();
+
+      expect(prompts).toHaveLength(4);
+      const promptNames = prompts.map(p => p.name);
+      expect(promptNames).toContain('rew_calibration_full');
+      expect(promptNames).toContain('rew_gain_staging');
+      expect(promptNames).toContain('rew_measurement_workflow');
+      expect(promptNames).toContain('rew_optimization_workflow');
+    });
+
+    it('ListPromptsRequest returns prompts with required fields', async () => {
+      const { prompts } = await mcpClient.listPrompts();
+
+      for (const prompt of prompts) {
+        expect(prompt.name).toBeDefined();
+        expect(typeof prompt.name).toBe('string');
+        expect(prompt.description).toBeDefined();
+      }
+    });
+
+    it('GetPromptRequest returns messages for rew_calibration_full', async () => {
+      const result = await mcpClient.getPrompt({
+        name: 'rew_calibration_full',
+        arguments: { target_spl_db: '79' }
+      });
+
+      expect(result.messages).toBeDefined();
+      expect(result.messages.length).toBeGreaterThan(0);
+
+      // First message should be user role with text content
+      expect(result.messages[0].role).toBe('user');
+      expect((result.messages[0].content as { type: string; text: string }).text).toContain('79');
+    });
+
+    it('GetPromptRequest returns messages for rew_gain_staging', async () => {
+      const result = await mcpClient.getPrompt({
+        name: 'rew_gain_staging',
+        arguments: {}
+      });
+
+      expect(result.messages).toBeDefined();
+      expect(result.messages.length).toBeGreaterThan(0);
+    });
+
+    it('GetPromptRequest for session-aware prompt requires session_id', async () => {
+      // Should throw for missing session_id
+      await expect(
+        mcpClient.getPrompt({
+          name: 'rew_measurement_workflow',
+          arguments: {}
+        })
+      ).rejects.toThrow();
+    });
+
+    it('GetPromptRequest for session-aware prompt returns embedded resource', async () => {
+      // Create a session first
+      const session = createSession('Test session');
+
+      const result = await mcpClient.getPrompt({
+        name: 'rew_measurement_workflow',
+        arguments: { session_id: session.session_id }
+      });
+
+      expect(result.messages).toBeDefined();
+      expect(result.messages.length).toBe(2); // assistant resource + user message
+
+      // First message should be assistant with embedded resource
+      const resourceMsg = result.messages[0];
+      expect(resourceMsg.role).toBe('assistant');
+      expect((resourceMsg.content as { type: string }).type).toBe('resource');
+    });
+  });
+
+  describe('Resources Capability', () => {
+    it('ListResourcesRequest returns session resources', async () => {
+      // Create a session
+      const session = createSession('Test session');
+
+      const { resources } = await mcpClient.listResources();
+
+      expect(resources.length).toBeGreaterThanOrEqual(1);
+      const sessionResource = resources.find(r => r.uri.startsWith('session://'));
+      expect(sessionResource).toBeDefined();
+      expect(sessionResource?.uri).toBe(`session://${session.session_id}`);
+    });
+
+    it('ListResourcesRequest returns empty when no sessions', async () => {
+      const { resources } = await mcpClient.listResources();
+
+      expect(resources).toHaveLength(0);
+    });
+
+    it('ListResourceTemplatesRequest returns all 4 templates', async () => {
+      const { resourceTemplates } = await mcpClient.listResourceTemplates();
+
+      expect(resourceTemplates).toHaveLength(4);
+      const templates = resourceTemplates.map(t => t.uriTemplate);
+      expect(templates).toContain('session://{session_id}');
+      expect(templates).toContain('measurement://{measurement_id}');
+      expect(templates).toContain('recommendations://{session_id}');
+      expect(templates).toContain('history://{session_id}');
+    });
+
+    it('ReadResourceRequest returns session data', async () => {
+      // Create and update session
+      const session = createSession('Integration test');
+      updateSession(session.session_id, {
+        sequence_step: 'measuring_left',
+        target_spl: 85
+      });
+
+      const result = await mcpClient.readResource({
+        uri: `session://${session.session_id}`
+      });
+
+      expect(result.contents).toHaveLength(1);
+      expect(result.contents[0].mimeType).toBe('application/json');
+
+      const data = JSON.parse(result.contents[0].text as string);
+      expect(data.session_id).toBe(session.session_id);
+      expect(data.sequence_step).toBe('measuring_left');
+      expect(data.target_spl).toBe(85);
+    });
+
+    it('ReadResourceRequest throws for invalid session', async () => {
+      await expect(
+        mcpClient.readResource({
+          uri: 'session://00000000-0000-0000-0000-000000000000'
+        })
+      ).rejects.toThrow();
+    });
+
+    it('ReadResourceRequest throws for unknown scheme', async () => {
+      await expect(
+        mcpClient.readResource({
+          uri: 'unknown://some-id'
+        })
+      ).rejects.toThrow();
     });
   });
 });
