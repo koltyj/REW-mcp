@@ -11,6 +11,7 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { registerTools } from './tools/index.js';
+import { registerResources } from './resources/index.js';
 
 /**
  * Create and start the MCP server
@@ -28,6 +29,13 @@ async function main() {
         tools: {
           listChanged: true  // Indicate tool list can change dynamically
         },
+        prompts: {
+          listChanged: true
+        },
+        resources: {
+          subscribe: true,
+          listChanged: true
+        },
         logging: {}
       }
     }
@@ -35,6 +43,9 @@ async function main() {
 
   // Register all tools
   registerTools(server);
+
+  // Register all resources
+  registerResources(server);
 
   // Log server start
   server.onerror = (error) => {
