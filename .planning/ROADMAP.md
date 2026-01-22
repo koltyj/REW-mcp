@@ -83,10 +83,10 @@ Plans:
 **Plans:** 4 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — Extend REWApiClient with input level monitoring methods
-- [ ] 03-02-PLAN.md — Create api-check-levels MCP tool (SETV-01 through SETV-04)
-- [ ] 03-03-PLAN.md — Create api-calibrate-spl MCP tool (SETV-05, SETV-06)
-- [ ] 03-04-PLAN.md — Unit tests for Phase 3 calibration tools
+- [x] 03-01-PLAN.md — Extend REWApiClient with input level monitoring methods
+- [x] 03-02-PLAN.md — Create api-check-levels MCP tool (SETV-01 through SETV-04)
+- [x] 03-03-PLAN.md — Create api-calibrate-spl MCP tool (SETV-05, SETV-06)
+- [x] 03-04-PLAN.md — Unit tests for Phase 3 calibration tools
 
 **Notes:**
 - Table stakes feature from research (prevents invalid measurements)
@@ -104,15 +104,20 @@ Plans:
   3. Measurements are organized by session with unique session IDs
   4. Session state persists across tool calls and can resume after disconnect
   5. Multiple concurrent sessions are supported without cross-contamination
-**Plans**: TBD
+**Plans:** 4 plans
 
 Plans:
-- TBD (will be created during planning)
+- [ ] 04-01-PLAN.md — Session state management module (Map-based storage, CRUD operations)
+- [ ] 04-02-PLAN.md — L/R/Sub sequence state machine (transition validation, guidance)
+- [ ] 04-03-PLAN.md — Measurement session MCP tool (start/measure/status/stop actions)
+- [ ] 04-04-PLAN.md — Unit tests for Phase 4 session and tool modules
 
 **Notes:**
 - Implements explicit session management (research recommendation)
-- Research flag: Verify REW API measurement triggering capability during planning
+- REW Pro license required for automated measurements (403 detection implemented)
 - Foundation for workflow prompts (Phase 8 dependency)
+- Uses crypto.randomUUID() for session IDs (native Node.js, no dependencies)
+- State machine enforces L/R/Sub ordering (prevents out-of-sequence measurements)
 
 ### Phase 5: Analysis & Interpretation
 **Goal**: Plain language room analysis with prioritized recommendations
@@ -204,7 +209,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 1. Core API + MCP Validation | 4/4 | Complete | 2026-01-21 |
 | 2. Testing Infrastructure | 5/5 | Complete | 2026-01-21 |
 | 3. Calibration Setup Tools | 4/4 | Complete | 2026-01-21 |
-| 4. Measurement Workflow + Sessions | 0/TBD | Not started | - |
+| 4. Measurement Workflow + Sessions | 0/4 | Planned | - |
 | 5. Analysis & Interpretation | 0/TBD | Not started | - |
 | 6. GLM Transparency Layer | 0/TBD | Not started | - |
 | 7. Optimization Guidance | 0/TBD | Not started | - |
@@ -212,4 +217,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 
 ---
 *Created: 2026-01-21*
-*Last updated: 2026-01-21 (Phase 3 complete)*
+*Last updated: 2026-01-21 (Phase 4 planned)*
