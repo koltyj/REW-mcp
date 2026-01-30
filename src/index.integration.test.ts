@@ -48,10 +48,10 @@ describe('MCP Server Integration', () => {
   });
 
   describe('Tool Registration', () => {
-    it('should register exactly 22 tools', async () => {
+    it('should register exactly 21 tools', async () => {
       const { tools } = await mcpClient.listTools();
 
-      expect(tools).toHaveLength(22);
+      expect(tools).toHaveLength(21);
     });
 
     it('should register all expected tool names', async () => {
@@ -66,7 +66,6 @@ describe('MCP Server Integration', () => {
       expect(toolNames).toContain('rew.analyze_impulse');
       expect(toolNames).toContain('rew.interpret_with_glm_context');
       expect(toolNames).toContain('rew.average_measurements');
-      expect(toolNames).toContain('rew.analyze_sub_integration');
       expect(toolNames).toContain('rew.compare_to_target');
 
       // API tools

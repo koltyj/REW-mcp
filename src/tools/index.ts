@@ -15,7 +15,6 @@ import { executeDecay, DecayInputSchema } from './decay.js';
 import { executeImpulse, ImpulseInputSchema } from './impulse.js';
 import { executeGLMInterpret, GLMInterpretInputSchema } from './glm-interpret.js';
 import { executeAveraging, AveragingInputSchema } from './averaging.js';
-import { executeSubIntegration, SubIntegrationInputSchema } from './sub-integration.js';
 import { executeApiConnect, ApiConnectInputSchema } from './api-connect.js';
 import { executeApiListMeasurements, ApiListMeasurementsInputSchema } from './api-list-measurements.js';
 import { executeApiGetMeasurement, ApiGetMeasurementInputSchema } from './api-get-measurement.js';
@@ -80,12 +79,6 @@ export function registerTools(server: Server): void {
           title: 'Average Measurements',
           description: 'Create a spatial average from multiple measurement positions. Implements REW\'s averaging methods: RMS (incoherent, recommended for spatial averaging), Vector (coherent, requires phase data), or hybrid methods. Useful for multi-position room calibration.',
           inputSchema: zodToJsonSchema(AveragingInputSchema)
-        },
-        {
-          name: 'rew.analyze_sub_integration',
-          title: 'Analyze Subwoofer Integration',
-          description: 'Analyze subwoofer integration with main speakers. Evaluates phase alignment, timing, and polarity at the crossover region. Provides delay and polarity recommendations for optimal summation.',
-          inputSchema: zodToJsonSchema(SubIntegrationInputSchema)
         },
         {
           name: 'rew.analyze_room',
@@ -210,10 +203,6 @@ export function registerTools(server: Server): void {
           
         case 'rew.average_measurements':
           result = await executeAveraging(args as any);
-          break;
-          
-        case 'rew.analyze_sub_integration':
-          result = await executeSubIntegration(args as any);
           break;
           
         case 'rew.api_connect':

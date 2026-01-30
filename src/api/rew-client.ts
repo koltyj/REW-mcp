@@ -434,6 +434,15 @@ export class REWApiClient {
 
   /**
    * Get frequency response data from a measurement
+   *
+   * Per REW API docs, FrequencyResponse returns:
+   * - startFrequency: starting frequency in Hz
+   * - pointsPerOctave (ppo): for log-spaced data
+   * - freqStep: for linear-spaced data
+   * - magnitude: Base64-encoded magnitudes
+   * - phase: Base64-encoded phases (optional)
+   *
+   * Frequencies must be computed from startFrequency + ppo/freqStep.
    */
   async getFrequencyResponse(
     uuid: string,
@@ -464,16 +473,38 @@ export class REWApiClient {
 
     const data = response.data as Record<string, unknown>;
 
-    // Decode Base64 arrays per REW API spec
-    const frequencies = data.frequencies
-      ? decodeREWFloatArray(data.frequencies as string)
+    // Decode Base64 magnitude array
+    const spl = (data.magnitude || data.magnitudes)
+      ? decodeREWFloatArray((data.magnitude || data.magnitudes) as string)
       : [];
-    const spl = (data.magnitude || data.spl)
-      ? decodeREWFloatArray((data.magnitude || data.spl) as string)
-      : [];
+
+    // Decode Base64 phase array (optional)
     const phase = data.phase
       ? decodeREWFloatArray(data.phase as string)
-      : frequencies.map(() => 0);
+      : spl.map(() => 0);
+
+    // Compute frequencies from startFrequency + ppo/freqStep per REW API spec
+    let frequencies: number[] = [];
+    const startFreq = (data.startFrequency ?? data.startFreq) as number | undefined;
+    const ppo = (data.pointsPerOctave ?? data.ppo) as number | undefined;
+    const freqStep = data.freqStep as number | undefined;
+
+    if (startFreq !== undefined && spl.length > 0) {
+      if (ppo !== undefined && ppo > 0) {
+        // Log-spaced data: freq[i] = startFreq * 2^(i/ppo)
+        // Per REW docs: "frequency at any zero-based index is startFreq*e^(index*ln(2)/ppo)"
+        const logRatio = Math.log(2) / ppo;
+        frequencies = spl.map((_, i) => startFreq * Math.exp(i * logRatio));
+      } else if (freqStep !== undefined && freqStep > 0) {
+        // Linear-spaced data: freq[i] = startFreq + i * freqStep
+        frequencies = spl.map((_, i) => startFreq + i * freqStep);
+      }
+    }
+
+    // Fallback: check if frequencies array is directly provided (non-standard but safe)
+    if (frequencies.length === 0 && data.frequencies) {
+      frequencies = decodeREWFloatArray(data.frequencies as string);
+    }
 
     const result: FrequencyResponseData = {
       frequencies_hz: frequencies,
@@ -488,6 +519,12 @@ export class REWApiClient {
 
   /**
    * Get impulse response data from a measurement
+   *
+   * Per REW API docs, ImpulseResponse returns:
+   * - startTime: start time
+   * - sampleInterval: sample interval in seconds
+   * - sampleRate: sample rate in Hz
+   * - data: Base64-encoded response data (NOT 'samples')
    */
   async getImpulseResponse(
     uuid: string,
@@ -517,11 +554,12 @@ export class REWApiClient {
       throw new REWApiError('Invalid impulse response data structure', 'INVALID_RESPONSE', 200);
     }
 
-    const data = rawData as Record<string, unknown>;
+    const apiData = rawData as Record<string, unknown>;
 
-    // Decode Base64 array
-    const samples = data.samples
-      ? decodeREWFloatArray(data.samples as string)
+    // Decode Base64 array - per REW API spec, the field is 'data' not 'samples'
+    // Also check 'samples' for backward compatibility with any existing mocks/tests
+    const samples = (apiData.data || apiData.samples)
+      ? decodeREWFloatArray((apiData.data || apiData.samples) as string)
       : [];
 
     // Find peak
@@ -535,13 +573,13 @@ export class REWApiClient {
       }
     }
 
-    const sampleRate = (data.sampleRate as number) || 48000;
+    const sampleRate = (apiData.sampleRate as number) || 48000;
 
     const result: ImpulseResponseData = {
       samples,
       sample_rate_hz: sampleRate,
       peak_index: peakIndex,
-      start_time_s: (data.startTime as number) || 0,
+      start_time_s: (apiData.startTime as number) || 0,
       duration_s: samples.length / sampleRate
     };
 
@@ -601,9 +639,28 @@ export class REWApiClient {
 
   /**
    * Get RT60 data
+   *
+   * Per REW API docs: "RT60 results can be read from /measurements/:id/rt60,
+   * specifying the octave fraction as a query parameter, e.g. ?octaveFrac=1"
+   *
+   * @param uuid - Measurement UUID
+   * @param options - Options including octaveFrac (1 for full octave, 3 or '1/3' for third octave)
    */
-  async getRT60(uuid: string): Promise<RT60Data> {
-    const response = await this.request('GET', `/measurements/${uuid}/rt60`);
+  async getRT60(uuid: string, options?: { octaveFrac?: number | string }): Promise<RT60Data> {
+    let path = `/measurements/${uuid}/rt60`;
+    const params = new URLSearchParams();
+
+    if (options?.octaveFrac !== undefined) {
+      // Handle both numeric (1, 3) and string ('1/3') formats
+      const octaveFrac = String(options.octaveFrac);
+      params.set('octaveFrac', octaveFrac);
+    }
+
+    if (params.toString()) {
+      path += `?${params.toString()}`;
+    }
+
+    const response = await this.request('GET', path);
 
     if (response.status !== 200 || !response.data) {
       this.handleResponseError(response, `RT60 data for ${uuid}`);
@@ -1005,10 +1062,13 @@ export class REWApiClient {
 
   /**
    * Set generator signal
-   * API expects: { signal: "pinknoise" }
+   *
+   * Per REW API docs: "A PUT selects a new signal"
+   * The PUT body should be the signal object/name
    */
   async setGeneratorSignal(signal: string): Promise<boolean> {
-    const response = await this.request('POST', '/generator/signal', { signal });
+    // REW API docs specify PUT for signal selection
+    const response = await this.request('PUT', '/generator/signal', signal);
     return response.status === 200;
   }
 

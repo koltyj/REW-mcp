@@ -205,15 +205,16 @@ describe('REWApiClient', () => {
   });
 
   describe('getImpulseResponse() (FNDN-07)', () => {
-    it('should return impulse response data when found (FNDN-07)', async () => {
+    it('should return impulse response data using REW API "data" field', async () => {
       // Create Base64-encoded float32 array for impulse samples (REW API format - big-endian)
       const samples = [0, 0.1, 0.8, 0.3, 0.05];
       const samplesBase64 = encodeREWFloatArray(samples);
 
       server.use(
         http.get('http://127.0.0.1:4735/measurements/:uuid/impulse-response', () => {
+          // REW API spec: field is 'data' not 'samples'
           return HttpResponse.json({
-            samples: samplesBase64,
+            data: samplesBase64,
             sampleRate: 48000,
             startTime: 0
           });
@@ -233,6 +234,29 @@ describe('REWApiClient', () => {
 
       // Verify peak detection
       expect(data.peak_index).toBe(2); // Index of 0.8
+    });
+
+    it('should also accept legacy "samples" field for backward compatibility', async () => {
+      // Test backward compatibility with 'samples' field
+      const samples = [0, 0.1, 0.8, 0.3, 0.05];
+      const samplesBase64 = encodeREWFloatArray(samples);
+
+      server.use(
+        http.get('http://127.0.0.1:4735/measurements/:uuid/impulse-response', () => {
+          return HttpResponse.json({
+            samples: samplesBase64,
+            sampleRate: 48000,
+            startTime: 0
+          });
+        })
+      );
+
+      const client = new REWApiClient();
+      const data = await client.getImpulseResponse('test-uuid');
+
+      expect(data).toBeDefined();
+      expect(data.samples).toHaveLength(5);
+      expect(data.sample_rate_hz).toBe(48000);
     });
 
     it('should throw NOT_FOUND when measurement does not exist', async () => {
@@ -402,6 +426,43 @@ describe('REWApiClient', () => {
       expect(rt60.t20_seconds[0]).toBeCloseTo(0.3, 2);
       expect(rt60.edt_seconds[0]).toBeCloseTo(0.32, 2);
     });
+
+    it('should pass octaveFrac parameter to RT60 endpoint', async () => {
+      let capturedUrl: string | undefined;
+      server.use(
+        http.get('http://127.0.0.1:4735/measurements/test-uuid/rt60', ({ request }) => {
+          capturedUrl = request.url;
+          return HttpResponse.json({
+            frequencies: encodeREWFloatArray([125]),
+            t20: encodeREWFloatArray([0.3]),
+            t30: encodeREWFloatArray([0.35]),
+            edt: encodeREWFloatArray([0.32])
+          });
+        })
+      );
+      const client = new REWApiClient();
+      await client.getRT60('test-uuid', { octaveFrac: 3 });
+      expect(capturedUrl).toContain('octaveFrac=3');
+    });
+
+    it('should handle third octave format for octaveFrac', async () => {
+      let capturedUrl: string | undefined;
+      server.use(
+        http.get('http://127.0.0.1:4735/measurements/test-uuid/rt60', ({ request }) => {
+          capturedUrl = request.url;
+          return HttpResponse.json({
+            frequencies: encodeREWFloatArray([125]),
+            t20: encodeREWFloatArray([0.3]),
+            t30: encodeREWFloatArray([0.35]),
+            edt: encodeREWFloatArray([0.32])
+          });
+        })
+      );
+      const client = new REWApiClient();
+      await client.getRT60('test-uuid', { octaveFrac: '1/3' });
+      // URL encoding converts '/' to '%2F'
+      expect(capturedUrl).toContain('octaveFrac=1%2F3');
+    });
   });
 
   describe('Error handling edge cases', () => {
@@ -446,8 +507,66 @@ describe('REWApiClient', () => {
   });
 
   describe('getFrequencyResponse()', () => {
-    it('should decode base64 float arrays from REW API', async () => {
-      // Create Base64-encoded float32 arrays (REW API format - big-endian)
+    it('should compute frequencies from startFrequency and ppo (REW API spec)', async () => {
+      // Per REW API: frequencies computed from startFrequency + pointsPerOctave
+      const magnitude = [75, 78, 80, 79, 77];
+      const phase = [0, -10, -20, -30, -45];
+
+      const magBase64 = encodeREWFloatArray(magnitude);
+      const phaseBase64 = encodeREWFloatArray(phase);
+
+      server.use(
+        http.get('http://127.0.0.1:4735/measurements/:uuid/frequency-response', () => {
+          return HttpResponse.json({
+            startFrequency: 20,
+            pointsPerOctave: 12,  // 12 PPO = standard
+            magnitude: magBase64,
+            phase: phaseBase64
+          });
+        })
+      );
+
+      const client = new REWApiClient();
+      const data = await client.getFrequencyResponse('test-uuid');
+
+      expect(data.frequencies_hz).toHaveLength(5);
+      expect(data.spl_db).toHaveLength(5);
+      expect(data.phase_degrees).toHaveLength(5);
+
+      // Verify frequency computation: freq[i] = startFreq * 2^(i/ppo)
+      // At 12 PPO, each step is 2^(1/12) = 1.0595 (semitone)
+      expect(data.frequencies_hz[0]).toBeCloseTo(20, 1);
+      expect(data.frequencies_hz[1]).toBeCloseTo(20 * Math.exp(1 * Math.log(2) / 12), 2);
+    });
+
+    it('should compute frequencies from startFrequency and freqStep (linear)', async () => {
+      // Per REW API: linear-spaced uses freqStep
+      const magnitude = [75, 78, 80, 79, 77];
+      const magBase64 = encodeREWFloatArray(magnitude);
+
+      server.use(
+        http.get('http://127.0.0.1:4735/measurements/:uuid/frequency-response', () => {
+          return HttpResponse.json({
+            startFrequency: 20,
+            freqStep: 10,  // 10 Hz steps
+            magnitude: magBase64
+          });
+        })
+      );
+
+      const client = new REWApiClient();
+      const data = await client.getFrequencyResponse('test-uuid');
+
+      expect(data.frequencies_hz).toHaveLength(5);
+      expect(data.frequencies_hz[0]).toBeCloseTo(20, 1);
+      expect(data.frequencies_hz[1]).toBeCloseTo(30, 1);
+      expect(data.frequencies_hz[2]).toBeCloseTo(40, 1);
+      expect(data.frequencies_hz[3]).toBeCloseTo(50, 1);
+      expect(data.frequencies_hz[4]).toBeCloseTo(60, 1);
+    });
+
+    it('should fallback to frequencies array if provided (backward compatibility)', async () => {
+      // Fallback: if frequencies array is directly provided
       const frequencies = [20, 50, 100, 200, 500];
       const magnitude = [75, 78, 80, 79, 77];
       const phase = [0, -10, -20, -30, -45];
@@ -738,9 +857,9 @@ describe('REWApiClient', () => {
       expect(signals).toEqual(['pinknoise', 'whitenoise', 'sine']);
     });
 
-    it('should set generator signal', async () => {
+    it('should set generator signal using PUT', async () => {
       server.use(
-        http.post('http://127.0.0.1:4735/generator/signal', () => {
+        http.put('http://127.0.0.1:4735/generator/signal', () => {
           return HttpResponse.json({ status: 200 });
         })
       );
