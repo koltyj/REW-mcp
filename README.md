@@ -6,7 +6,7 @@
 
 [![npm version](https://img.shields.io/npm/v/rew-mcp.svg?style=flat-square)](https://www.npmjs.com/package/rew-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D18-brightgreen?style=flat-square&logo=node.js)](https://nodejs.org)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen?style=flat-square&logo=node.js)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![CI](https://img.shields.io/github/actions/workflow/status/koltyj/rew-mcp/ci.yml?style=flat-square&label=CI)](https://github.com/koltyj/rew-mcp/actions)
 [![Tests](https://img.shields.io/badge/tests-884_passing-brightgreen?style=flat-square)](https://github.com/koltyj/rew-mcp/actions)
@@ -41,7 +41,7 @@ REW MCP Server lets an LLM control Room EQ Wizard, analyze your measurements, an
 
 ### Requirements
 
-- **Node.js 18+**
+- **Node.js 20+**
 - **[Room EQ Wizard](https://www.roomeqwizard.com)** running with API enabled (`-api` flag or Preferences)
 - **Measurement microphone** (calibrated preferred — UMIK-1, UMIK-2, etc.)
 
