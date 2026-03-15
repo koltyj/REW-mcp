@@ -37,8 +37,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint src/**/*.ts",
-    "lint:fix": "eslint src/**/*.ts --fix",
+    "lint": "eslint src --no-warn-ignored",
+    "lint:fix": "eslint src --fix --no-warn-ignored",
     "prepare": "npm run build",
     "prepublishOnly": "npm run build && npm run lint && npm test"
   },

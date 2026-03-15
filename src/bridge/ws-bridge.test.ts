@@ -14,23 +14,59 @@ const TEST_PORT = 52399;
 const WS_URL = `ws://127.0.0.1:${TEST_PORT}`;
 
 /** Open a WS client and wait for the connection to be established. */
-function openClient(): Promise<WebSocket> {
+function openClient(skip?: () => never): Promise<WebSocket> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(WS_URL);
     ws.on('open', () => resolve(ws));
-    ws.on('error', reject);
+    ws.on('error', (error) => {
+      if ((error as NodeJS.ErrnoException).code === 'EPERM' && skip) {
+        skip();
+      }
+      reject(error);
+    });
   });
 }
 
 /** Read the next JSON message from a WS client. */
 function nextMessage(ws: WebSocket, timeoutMs = 2000): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('timeout waiting for WS message')), timeoutMs);
-    ws.once('message', (data) => {
+    const cleanup = (): void => {
       clearTimeout(timer);
+      ws.off('message', handleMessage);
+      ws.off('error', handleError);
+      ws.off('close', handleClose);
+    };
+    const handleMessage = (data: WebSocket.RawData): void => {
+      cleanup();
       resolve(JSON.parse(data.toString()));
-    });
+    };
+    const handleError = (error: Error): void => {
+      cleanup();
+      reject(error);
+    };
+    const handleClose = (): void => {
+      cleanup();
+      reject(new Error('socket closed before message'));
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('timeout waiting for WS message'));
+    }, timeoutMs);
+    ws.once('message', handleMessage);
+    ws.once('error', handleError);
+    ws.once('close', handleClose);
   });
+}
+
+async function startBridgeOrSkip(skip: () => never): Promise<void> {
+  try {
+    await startBridge({ port: TEST_PORT });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EPERM') {
+      skip();
+    }
+    throw error;
+  }
 }
 
 describe('WebSocket Bridge', () => {
@@ -44,18 +80,18 @@ describe('WebSocket Bridge', () => {
 
   // ---------- 1. Start and accept connections ----------
 
-  it('should start and accept a WebSocket connection', async () => {
-    await startBridge({ port: TEST_PORT });
-    const ws = await openClient();
+  it('should start and accept a WebSocket connection', async ({ skip }) => {
+    await startBridgeOrSkip(skip);
+    const ws = await openClient(skip);
     expect(ws.readyState).toBe(WebSocket.OPEN);
     ws.close();
   });
 
   // ---------- 2. Forward bus events to connected clients ----------
 
-  it('should forward bus events to connected clients', async () => {
-    await startBridge({ port: TEST_PORT });
-    const ws = await openClient();
+  it('should forward bus events to connected clients', async ({ skip }) => {
+    await startBridgeOrSkip(skip);
+    const ws = await openClient(skip);
 
     const msgPromise = nextMessage(ws);
 
@@ -74,8 +110,8 @@ describe('WebSocket Bridge', () => {
 
   // ---------- 3. Snapshot on initial connection ----------
 
-  it('should send a snapshot to a newly connected client', async () => {
-    await startBridge({ port: TEST_PORT });
+  it('should send a snapshot to a newly connected client', async ({ skip }) => {
+    await startBridgeOrSkip(skip);
 
     // Emit an event before any client connects — it gets cached
     tuiEventBus.emit('workflow:session_started', {
@@ -96,7 +132,13 @@ describe('WebSocket Bridge', () => {
       const client = new WebSocket(WS_URL);
       const msgPromise = nextMessage(client);
       client.on('open', () => resolve({ ws: client, firstMessage: msgPromise }));
-      client.on('error', reject);
+      client.on('error', (error) => {
+        if ((error as NodeJS.ErrnoException).code === 'EPERM') {
+          void msgPromise.catch(() => {});
+          skip();
+        }
+        reject(error);
+      });
     });
 
     const msg = (await firstMessage) as {
@@ -113,11 +155,11 @@ describe('WebSocket Bridge', () => {
 
   // ---------- 4. Multiple clients receive same event ----------
 
-  it('should forward events to all connected clients', async () => {
-    await startBridge({ port: TEST_PORT });
+  it('should forward events to all connected clients', async ({ skip }) => {
+    await startBridgeOrSkip(skip);
 
-    const ws1 = await openClient();
-    const ws2 = await openClient();
+    const ws1 = await openClient(skip);
+    const ws2 = await openClient(skip);
 
     const p1 = nextMessage(ws1);
     const p2 = nextMessage(ws2);
@@ -138,10 +180,10 @@ describe('WebSocket Bridge', () => {
 
   // ---------- 5. Clean stop ----------
 
-  it('should not accept connections after stopBridge()', async () => {
-    await startBridge({ port: TEST_PORT });
+  it('should not accept connections after stopBridge()', async ({ skip }) => {
+    await startBridgeOrSkip(skip);
     await stopBridge();
 
-    await expect(openClient()).rejects.toThrow();
+    await expect(openClient(skip)).rejects.toThrow();
   });
 });
