@@ -193,10 +193,15 @@ Claude: Connects to REW → checks your mic levels → calibrates to 85 dB SPL
 
 ## Claude Code Plugin
 
-For Claude Code users, the included plugin adds guided workflows, domain knowledge, and quality automation on top of the MCP server.
+For [Claude Code](https://docs.anthropic.com/en/docs/claude-code) users, the included plugin adds guided workflows, domain knowledge, and quality automation on top of the MCP server.
 
 ```bash
+# From a cloned repo
 claude --plugin-dir ./plugin
+
+# Or from npm (installs both the MCP server and plugin)
+npm install -g rew-mcp
+claude --plugin-dir $(npm root -g)/rew-mcp/plugin
 ```
 
 ### Commands
