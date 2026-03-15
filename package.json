@@ -1,0 +1,97 @@
+{
+  "name": "rew-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for Room EQ Wizard measurement analysis. Enables AI-assisted speaker placement decisions and validation of Genelec GLM calibration.",
+  "type": "module",
+  "mcpName": "io.github.koltyj/rew-mcp",
+  "bin": {
+    "rew-mcp": "dist/index.js",
+    "rew-mcp-tui": "dist/tui/index.js"
+  },
+  "files": [
+    "dist",
+    "docs/analysis-rules.md",
+    "docs/architecture.md",
+    "docs/examples.md",
+    "docs/file-formats.md",
+    "docs/glm-context.md",
+    "docs/guardrails.md",
+    "docs/prompts.md",
+    "docs/references.md",
+    "docs/resources.md",
+    "docs/tools",
+    "CHANGELOG.md",
+    "CODE_OF_CONDUCT.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc && node -e \"require('fs').chmodSync('dist/index.js','755');try{require('fs').chmodSync('dist/tui/index.js','755')}catch{}\"",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run build && npm run lint && npm test"
+  },
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "rew",
+    "room-eq-wizard",
+    "audio",
+    "acoustics",
+    "room-correction",
+    "speaker-placement",
+    "genelec",
+    "glm",
+    "frequency-response",
+    "impulse-response"
+  ],
+  "author": "Kolton Jacobs",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/koltyj/rew-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/koltyj/rew-mcp/issues"
+  },
+  "homepage": "https://github.com/koltyj/rew-mcp#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.2",
+    "ink": "^6.8.0",
+    "ink-spinner": "^5.0.0",
+    "react": "^19.2.4",
+    "ws": "^8.19.0",
+    "zod": "^3.23.8",
+    "zod-to-json-schema": "^3.23.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.2.14",
+    "@types/ws": "^8.18.1",
+    "@typescript-eslint/eslint-plugin": "^8.57.0",
+    "@typescript-eslint/parser": "^8.57.0",
+    "@vitest/coverage-v8": "^2.1.8",
+    "eslint": "^10.0.3",
+    "globals": "^17.4.0",
+    "msw": "^2.12.7",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.57.0",
+    "vitest": "^2.1.8"
+  }
+}

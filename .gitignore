@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Coverage
+coverage/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Planning files (local only)
+task_plan.md
+progress.md
+findings.md
+.planning/
+API_GAP_ANALYSIS.md
+IMPLEMENTATION_PLAN.md
+
+# Internal tool config
+.serena/
+
+# Internal docs (not for public repo)
+docs/superpowers/
+docs/AUDIT_REPORT.md
+docs/IMPLEMENTATION_PLAN.md
+
+# Superpowers brainstorm sessions
+.superpowers/
