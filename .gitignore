@@ -36,6 +36,8 @@ IMPLEMENTATION_PLAN.md
 
 # Internal tool config
 .serena/
+.internal/
+.git-old/
 
 # Internal docs (not for public repo)
 docs/superpowers/

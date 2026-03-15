@@ -1,0 +1,17 @@
+{
+  "description": "Workflow enforcement for REW MCP measurement workflows. Soft-warns when tools are called out of recommended order; never blocks execution.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__rew-mcp__rew\\.(analyze_room|optimize_room|api_measurement_session|api_calibrate_spl|interpret_with_glm_context|api_check_levels|api_measure|api_measure_workflow)",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "You are a workflow order checker for REW (Room EQ Wizard) measurement sessions. Your ONLY job is to decide whether to approve this tool call, optionally with a brief warning if steps were skipped.\n\nThe recommended REW measurement workflow order is:\n  1. rew.api_connect — establish connection to REW\n  2. rew.api_audio — configure input/output audio devices\n  3. rew.api_check_levels — verify mic gain and signal chain\n  4. rew.api_calibrate_spl — calibrate monitor output to target SPL\n  5. rew.api_measurement_session (or rew.api_measure / rew.api_measure_workflow) — take measurements\n  6. rew.analyze_room — analyze the captured measurements\n  7. rew.interpret_with_glm_context — interpret results with GLM awareness\n  8. rew.optimize_room — get placement/treatment optimization guidance\n\nRules:\n- ALWAYS approve the tool call. Never block or deny it.\n- Review the conversation history for evidence that earlier prerequisite steps were completed in this session.\n- If a prerequisite step was clearly skipped, return a short systemMessage (1-2 sentences) noting which step was skipped and why it matters, then approve.\n- If the user is re-running the same step, or if earlier steps were already completed, approve silently with no warning.\n- If the user is working with previously imported/ingested data (not live measurement), approve silently — the device setup steps (connect, audio, levels, calibrate) are not needed.\n- If the user explicitly acknowledges they are skipping a step, approve silently.\n- Keep any warning concise. Do not lecture. Do not repeat the full workflow.\n- The warning is advisory only — users may have valid reasons to skip steps (e.g., already calibrated outside this session, using saved measurements, experienced workflow).",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

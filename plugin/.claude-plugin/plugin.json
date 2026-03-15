@@ -1,0 +1,12 @@
+{
+  "name": "rew-mcp-toolkit",
+  "version": "1.0.0",
+  "description": "Room acoustics analysis toolkit for audio engineers using the REW MCP server. Provides domain knowledge, guided workflows, measurement review, and workflow enforcement.",
+  "author": {
+    "name": "Kolton Jacobs",
+    "email": "krjhawks@gmail.com"
+  },
+  "repository": "https://github.com/koltyj/rew-mcp",
+  "license": "MIT",
+  "keywords": ["rew", "room-acoustics", "audio", "calibration", "mcp"]
+}
