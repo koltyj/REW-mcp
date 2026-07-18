@@ -18,7 +18,7 @@ Configure input and output audio devices, sample rates, and view current audio s
   "properties": {
     "action": {
       "type": "string",
-      "enum": ["status", "list_devices", "set_input", "set_output", "set_sample_rate"],
+      "enum": ["status", "list_devices", "set_input", "set_output", "set_sample_rate", "get_channels", "set_input_channel", "set_output_mapping", "get_output_cal"],
       "description": "Audio configuration action"
     },
     "device": {
@@ -28,6 +28,13 @@ Configure input and output audio devices, sample rates, and view current audio s
     "sample_rate": {
       "type": "number",
       "description": "Sample rate in Hz (for set_sample_rate)"
+    },
+    "channel": {
+      "type": "number",
+      "description": "Channel number (for set_input_channel)"
+    },
+    "mapping": {
+      "description": "Output channel mapping (for set_output_mapping)"
     }
   },
   "required": ["action"]
@@ -50,6 +57,18 @@ Set the output device (playback for sweeps/test signals).
 
 ### set_sample_rate
 Set the audio sample rate.
+
+### get_channels
+Get the current Java channel configuration: input channel, reference input channel, last input channel, output channel mapping, and stereo-only mode.
+
+### set_input_channel
+Set the Java input channel number.
+
+### set_output_mapping
+Set the Java output channel mapping.
+
+### get_output_cal
+Get the current output calibration configuration.
 
 ## Examples
 
@@ -111,6 +130,21 @@ Set the audio sample rate.
     "input_devices": ["Default Device", "UMIK-1", "Built-in Microphone"],
     "output_devices": ["Default Device", "Built-in Output", "External DAC"],
     "sample_rates": [44100, 48000, 88200, 96000]
+  }
+}
+```
+
+### get_channels action
+```json
+{
+  "action": "get_channels",
+  "success": true,
+  "channels": {
+    "input_channel": 2,
+    "ref_input_channel": 1,
+    "last_input_channel": 2,
+    "output_channel_mapping": {...},
+    "stereo_only": false
   }
 }
 ```

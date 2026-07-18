@@ -22,6 +22,7 @@ Generate test signals including sine tones, pink noise, white noise, sweeps, and
       "enum": ["status", "start", "stop", "set_signal", "set_level", "set_frequency", "list_signals"],
       "description": "Generator action to perform"
     },
+    "_signal_note": "Use a valid REW signal name from list_signals (e.g. pinknoise, whitenoise, sine, logsweep) — not a display string like 'Pink noise'.",
     "signal": {
       "type": "string",
       "description": "Signal type (for set_signal)"

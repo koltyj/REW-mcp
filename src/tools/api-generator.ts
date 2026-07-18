@@ -16,7 +16,7 @@ export const ApiGeneratorInputSchema = z.object({
     .describe('Generator action to perform'),
   
   signal: z.string().optional()
-    .describe('Signal type (for set_signal). Common: "Pink noise", "White noise", "Sine", "Sweep"'),
+    .describe('Signal name (for set_signal), exactly as listed by list_signals. Valid values include: sine, square, sawtooth, toneburst, cea-burst, j-test, dualtone, tripletone, quadtone, multitone, pinknoise, whitenoise, pinkpn, whitepn, linearsweep, logsweep, meassweep, fsafnoise. Note: use "pinknoise" (not "Pink noise").'),
   
   level_db: z.number().min(-60).max(0).optional()
     .describe('Output level in dBFS (for set_level)'),

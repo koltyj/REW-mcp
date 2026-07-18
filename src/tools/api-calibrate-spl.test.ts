@@ -9,6 +9,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { executeApiCalibrateSPL } from './api-calibrate-spl.js';
 import { REWApiError } from '../api/rew-api-error.js';
+import type { SPLValues, SPLMeterConfigInput } from '../api/schemas.js';
 
 // Mock getActiveApiClient
 vi.mock('./api-connect.js', () => ({
@@ -24,9 +25,9 @@ describe('executeApiCalibrateSPL', () => {
     setGeneratorSignal: vi.fn(),
     setGeneratorLevel: vi.fn(),
     executeGeneratorCommand: vi.fn(),
-    setSPLMeterConfig: vi.fn(),
+    setSPLMeterConfig: vi.fn<(id: number, config: SPLMeterConfigInput) => Promise<boolean>>(),
     executeSPLMeterCommand: vi.fn(),
-    getSPLMeterLevels: vi.fn()
+    getSPLMeterLevels: vi.fn<(id: number) => Promise<SPLValues>>()
   };
 
   beforeEach(() => {
@@ -67,7 +68,7 @@ describe('executeApiCalibrateSPL', () => {
       await vi.advanceTimersByTimeAsync(3000);
       await promise;
 
-      expect(mockClient.setGeneratorSignal).toHaveBeenCalledWith('Pink noise');
+      expect(mockClient.setGeneratorSignal).toHaveBeenCalledWith('pinknoise');
     });
 
     it('should set generator level to -20 dBFS', async () => {
@@ -357,7 +358,7 @@ describe('executeApiCalibrateSPL', () => {
         spl: 85.0,
         leq: 84.5,
         sel: 85.0,
-        weighting: 'C',
+        splWeighting: 'C',
         filter: 'Slow'
       });
 
@@ -371,7 +372,7 @@ describe('executeApiCalibrateSPL', () => {
         spl: 85.0,
         leq: 84.5,
         sel: 85.0,
-        weighting: 'A',  // Different from default C
+        splWeighting: 'A',  // Different from default C
         filter: 'Slow'
       });
 

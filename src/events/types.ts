@@ -6,6 +6,7 @@
  */
 
 import type { SequenceStep, SessionMeasurement } from '../session/index.js';
+import type { REWApiErrorCode } from '../api/rew-api-error.js';
 
 // ---------------------------------------------------------------------------
 // Event Envelope
@@ -151,7 +152,7 @@ export interface HealthHeartbeatPayload {
 
 // 8. Health: API error
 export interface HealthApiErrorPayload {
-  code: 'NOT_FOUND' | 'CONNECTION_REFUSED' | 'TIMEOUT' | 'INTERNAL_ERROR' | 'INVALID_RESPONSE';
+  code: REWApiErrorCode;
   httpStatus: number;
   message: string;
   endpoint?: string;

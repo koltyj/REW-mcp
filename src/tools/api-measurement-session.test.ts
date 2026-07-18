@@ -279,13 +279,14 @@ describe('executeApiMeasurementSession', () => {
       expect(result.data?.next_step).toBe('measuring_right');
     });
 
-    it('should return license_error on 403 status', async () => {
+    it('should return license_error with manual-measure guidance when Pro is required', async () => {
       mockClient.setMeasureNotes.mockResolvedValue(true);
       mockClient.setBlockingMode.mockResolvedValue(true);
       mockClient.listMeasurements.mockResolvedValue([]);
       mockClient.executeMeasureCommand.mockResolvedValue({
         success: false,
-        status: 403
+        status: 401,
+        proLicenseRequired: true
       });
 
       const session = await executeApiMeasurementSession({ action: 'start_session' });
@@ -299,7 +300,8 @@ describe('executeApiMeasurementSession', () => {
 
       expect(result.status).toBe('error');
       expect(result.error_type).toBe('license_error');
-      expect(result.message).toContain('REW Pro license required');
+      expect(result.message).toContain('manually');
+      expect(result.message).toContain('continue');
       expect(result.suggestion).toContain('roomeqwizard.com');
     });
 

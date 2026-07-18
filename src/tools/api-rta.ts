@@ -14,7 +14,7 @@ import type { ToolResponse } from '../types/index.js';
 export const ApiRTAInputSchema = z.object({
   action: z.enum([
     'start', 'stop', 'capture', 'reset',
-    'configure', 'read_levels', 'read_captured', 'read_distortion'
+    'configure', 'read_levels', 'read_captured', 'read_captured_peak', 'read_distortion'
   ]).describe('RTA action to perform'),
 
   config: z.object({
@@ -162,8 +162,24 @@ export async function executeApiRTA(input: ApiRTAInput): Promise<ToolResponse<Ap
           data: {
             action: 'read_captured',
             success: true,
-            message: 'RTA captured data retrieved',
+            message: capturedData.message
+              ?? 'RTA captured data retrieved (decoded frequencies_hz + magnitude_db)',
             captured_data: capturedData
+          }
+        };
+      }
+
+      case 'read_captured_peak': {
+        const capturedPeak = await client.getRTACapturedPeakData();
+
+        return {
+          status: 'success',
+          data: {
+            action: 'read_captured_peak',
+            success: true,
+            message: capturedPeak.message
+              ?? 'RTA captured peak data retrieved (decoded frequencies_hz + magnitude_db)',
+            captured_data: capturedPeak
           }
         };
       }

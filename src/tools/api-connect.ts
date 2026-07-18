@@ -25,6 +25,9 @@ export type ApiConnectInput = z.infer<typeof ApiConnectInputSchema>;
 export interface ApiConnectResult {
   status: 'connected' | 'error';
   rew_version?: string;
+  api_version?: string;
+  api_version_supported?: boolean;
+  compatibility_warning?: string;
   measurements_available: number;
   api_capabilities: {
     pro_features: boolean;
@@ -84,6 +87,9 @@ export async function executeApiConnect(input: ApiConnectInput): Promise<ToolRes
         status: 'success',
         data: {
           status: 'error',
+          api_version: connectionStatus.api_version,
+          api_version_supported: connectionStatus.api_version_supported,
+          compatibility_warning: connectionStatus.compatibility_warning,
           measurements_available: 0,
           api_capabilities: {
             pro_features: false,
@@ -105,6 +111,9 @@ export async function executeApiConnect(input: ApiConnectInput): Promise<ToolRes
       data: {
         status: 'connected' as const,
         rew_version: connectionStatus.rew_version,
+        api_version: connectionStatus.api_version,
+        api_version_supported: connectionStatus.api_version_supported,
+        compatibility_warning: connectionStatus.compatibility_warning,
         measurements_available: connectionStatus.measurements_available,
         api_capabilities: connectionStatus.api_capabilities,
         diagnostics: {

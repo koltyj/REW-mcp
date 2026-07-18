@@ -66,7 +66,7 @@ export async function executeApiCalibrateSPL(input: ApiCalibrateSPLInput): Promi
     switch (validated.action) {
       case 'start': {
         // Step 1: Configure generator for pink noise at -20 dBFS
-        const signalSet = await client.setGeneratorSignal('Pink noise');
+        const signalSet = await client.setGeneratorSignal('pinknoise');
         if (!signalSet) {
           return {
             status: 'error',
@@ -170,7 +170,7 @@ export async function executeApiCalibrateSPL(input: ApiCalibrateSPLInput): Promi
         }
 
         // Step 2: Calculate adjustment
-        const currentSPL = levels.spl;
+        const currentSPL = levels.spl ?? 0;
         const adjustment = validated.target_spl - currentSPL;
 
         // Step 3: Determine within tolerance
@@ -179,7 +179,7 @@ export async function executeApiCalibrateSPL(input: ApiCalibrateSPLInput): Promi
         // Step 4: Generate guidance
         let guidance: string;
         if (withinTolerance) {
-          guidance = `Target achieved! Current level is within tolerance (${currentSPL.toFixed(1)} dB${levels.weighting}). Use action: stop to end calibration.`;
+          guidance = `Target achieved! Current level is within tolerance (${currentSPL.toFixed(1)} dB${levels.splWeighting ?? ''}). Use action: stop to end calibration.`;
         } else if (adjustment > 0) {
           guidance = `Too quiet. Increase monitor volume by approximately ${Math.abs(adjustment).toFixed(1)} dB, then check again.`;
         } else {
@@ -192,7 +192,7 @@ export async function executeApiCalibrateSPL(input: ApiCalibrateSPLInput): Promi
           adjustment_db: adjustment,
           within_tolerance: withinTolerance,
           tolerance_db: validated.tolerance_db,
-          weighting: levels.weighting,
+          weighting: levels.splWeighting ?? validated.weighting,
           guidance
         };
 

@@ -43,8 +43,8 @@ Execute and configure REW measurements remotely. Supports sweep measurements, SP
           "description": "Sweep end frequency in Hz"
         },
         "sweep_length": {
-          "type": "number",
-          "description": "Sweep length in samples"
+          "type": "string",
+          "description": "Sweep length as a REW length string (\"64k\", \"128k\", \"256k\", \"512k\", \"1M\", \"2M\", \"4M\")"
         },
         "notes": {
           "type": "string",
@@ -66,10 +66,10 @@ Get current measurement configuration and available commands.
 Set measurement parameters without triggering a measurement.
 
 ### sweep
-Trigger a sweep measurement. Requires REW Pro license.
+Trigger a sweep measurement. Requires a REW Pro licence. Without Pro, REW returns HTTP 401 and the tool responds with `pro_license_required: true` and a message telling the user to run the measurement manually in REW's Measure dialog (using the reported level/sweep settings) and then tell the assistant to continue. The assistant should relay that guidance and resume via `rew_api_list_measurements` once the new measurement exists.
 
 ### spl
-Trigger an SPL measurement.
+Trigger an SPL measurement. Also requires a REW Pro licence; the same manual-measurement fallback applies.
 
 ### cancel
 Cancel an in-progress measurement.

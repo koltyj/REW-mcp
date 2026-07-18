@@ -6,7 +6,7 @@
  */
 
 import { decodeREWFloatArray } from './base64-decoder.js';
-import type { FrequencyResponseData, ImpulseResponseData, GroupDelayData, DistortionData } from '../types/index.js';
+import type { FrequencyResponseData, ImpulseResponseData, GroupDelayData, DistortionData, WaterfallData } from '../types/index.js';
 import { REWApiError } from './rew-api-error.js';
 import {
   MeasurementInfoSchema,
@@ -20,8 +20,78 @@ import {
   InputLevelsSchema,
   validateApiResponse,
   type InputCalibration,
-  type InputLevels
+  type InputLevels,
+  type EqualiserEntry,
+  type EqTargetSettings,
+  type EqRoomCurveSettings,
+  type EQDefaults,
+  type RTACapturedData,
+  type SPLValues,
+  type SPLMeterConfiguration,
+  type SPLMeterConfigInput,
+  type MeasSweepConfiguration,
+  type MeasureValue,
+  type MeasurementNaming,
+  type MeasureCommandResult,
+  type RT60Data,
+  type CommandExecutionResult
 } from './schemas.js';
+import type {
+  Signal,
+  Value,
+  AudioStatus,
+  Driver,
+  Device,
+  Enable,
+  InputChannel,
+  FrequencyResponse,
+  Distortion,
+  RT60Result,
+  FilterSetting,
+} from './generated/rew-api.js';
+
+/**
+ * REW REST API contract version this client was written and verified against.
+ * REW reports it via GET /version ("... API <x>") and GET /doc.json (info.version).
+ * A connection whose reported API version differs in major.minor is flagged as
+ * potentially incompatible rather than silently trusted.
+ */
+export const SUPPORTED_API_VERSION = '0.9.5';
+
+export interface ApiCompatibility {
+  supported: boolean;
+  reported?: string;
+  expected: string;
+  warning?: string;
+}
+
+/**
+ * Compare a reported REW API version against SUPPORTED_API_VERSION on the
+ * major.minor level. Patch differences are treated as compatible (with a note);
+ * a differing or missing major.minor is flagged as unsupported.
+ */
+export function checkApiCompatibility(reported?: string): ApiCompatibility {
+  const expected = SUPPORTED_API_VERSION;
+  if (!reported) {
+    return {
+      supported: false,
+      expected,
+      warning: `Could not determine the REW API version; this client targets API ${expected}. Behaviour is unverified.`
+    };
+  }
+  const mm = (v: string): string => v.split('.').slice(0, 2).join('.');
+  if (mm(reported) === mm(expected)) {
+    return reported === expected
+      ? { supported: true, reported, expected }
+      : { supported: true, reported, expected, warning: `REW API ${reported} differs from the verified ${expected} at the patch level; likely compatible.` };
+  }
+  return {
+    supported: false,
+    reported,
+    expected,
+    warning: `REW API ${reported} is not supported by this client (verified against ${expected}). Endpoints may have changed; results should be treated as unreliable.`
+  };
+}
 
 export interface REWApiConfig {
   host: string;      // Default: '127.0.0.1'
@@ -32,6 +102,9 @@ export interface REWApiConfig {
 export interface ConnectionStatus {
   connected: boolean;
   rew_version?: string;
+  api_version?: string;
+  api_version_supported?: boolean;
+  compatibility_warning?: string;
   measurements_available: number;
   api_capabilities: {
     pro_features: boolean;
@@ -71,17 +144,17 @@ export interface ImpulseResponseOptions {
   windowed?: boolean;
 }
 
-export interface WaterfallData {
-  frequencies_hz: number[];
-  time_slices_ms: number[];
-  magnitude_db: number[][]; // [time_index][freq_index]
-}
-
-export interface RT60Data {
-  frequencies_hz: number[];
-  t20_seconds: number[];
-  t30_seconds: number[];
-  edt_seconds: number[];
+export interface WaterfallOptions {
+  mode?: string; // "Fourier" (default) or "Burst decay"
+  slices?: number;
+  leftWindowType?: string;
+  rightWindowType?: string;
+  windowWidthMs?: number;
+  timeRangeMs?: number;
+  riseTimeMs?: number;
+  useCsdMode?: boolean;
+  ppo?: number;
+  smoothing?: string;
 }
 
 /**
@@ -205,22 +278,48 @@ export class REWApiClient {
   }
 
   /**
+   * Fetch the REW application and REST API versions from the lightweight
+   * /version endpoint, which returns e.g. { "message": "5.40 Beta 130 API 0.9.5" }.
+   * The application version precedes the "API <x>" marker; the API version follows it.
+   */
+  async getVersion(): Promise<{ status: number; rew_version?: string; api_version?: string; raw?: string; error?: string }> {
+    const response = await this.request('GET', '/version');
+
+    if (response.status !== 200 || !response.data) {
+      return { status: response.status, error: response.error };
+    }
+
+    const message = (response.data as Record<string, unknown>).message as string | undefined;
+    if (!message) {
+      return { status: response.status };
+    }
+
+    const apiMatch = message.match(/\bAPI\s+([\d.]+)/i);
+    return {
+      status: response.status,
+      rew_version: (apiMatch ? message.slice(0, apiMatch.index).trim() : message.trim()) || undefined,
+      api_version: apiMatch?.[1],
+      raw: message
+    };
+  }
+
+  /**
    * Connect to REW API and verify connection
    *
    * Per REW docs, the API is accessible at localhost:4735 by default.
-   * The OpenAPI spec is at /doc.json or /doc.yaml.
-   * Swagger UI is served at the root URL.
+   * Connectivity and version are checked via the lightweight /version endpoint;
+   * the full OpenAPI spec at /doc.json is only fetched when actually needed.
    *
    * NOTE: The /application endpoint may not exist in all REW versions,
-   * so we use /doc.json and /measurements as the primary health checks.
+   * so we use /version and /measurements as the primary health checks.
    */
   async connect(): Promise<ConnectionStatus> {
     try {
-      // First, verify the API server is actually running by checking the OpenAPI spec
-      // This is the most reliable endpoint since swagger-ui serves it
-      const healthCheck = await this.request('GET', '/doc.json');
-      
-      if (healthCheck.status === 0) {
+      // First, verify the API server is actually running via the lightweight
+      // /version endpoint (far cheaper than fetching the full OpenAPI document).
+      const versionInfo = await this.getVersion();
+
+      if (versionInfo.status === 0) {
         // Connection refused - REW not running or API not enabled
         return {
           connected: false,
@@ -229,8 +328,8 @@ export class REWApiClient {
           error_message: `Cannot connect to REW at ${this.baseUrl}. Ensure REW is running and the API is enabled in Preferences → API (click "Start" button).`
         };
       }
-      
-      if (healthCheck.status === 404) {
+
+      if (versionInfo.status === 404) {
         // Server responding but endpoint not found - likely wrong port or old REW version
         return {
           connected: false,
@@ -239,20 +338,18 @@ export class REWApiClient {
           error_message: `REW API endpoint not found (HTTP 404). This usually means: (1) REW version is too old (API requires v5.30+), or (2) The API server isn't started. Check Preferences → API and click "Start". Also verify the port number matches.`
         };
       }
-      
-      if (healthCheck.status !== 200) {
+
+      if (versionInfo.status !== 200) {
         return {
           connected: false,
           measurements_available: 0,
           api_capabilities: { pro_features: false, blocking_mode: false },
-          error_message: healthCheck.error || `Unexpected HTTP ${healthCheck.status} from /doc.json endpoint`
+          error_message: versionInfo.error || `Unexpected HTTP ${versionInfo.status} from /version endpoint`
         };
       }
 
-      // Extract API version from OpenAPI spec
-      const apiVersion = (healthCheck.data as Record<string, unknown>)?.info ?
-        ((healthCheck.data as Record<string, unknown>).info as Record<string, unknown>).version as string :
-        undefined;
+      const apiVersion = versionInfo.api_version;
+      const reportedRewVersion = versionInfo.rew_version;
 
       // Verify we can access measurements endpoint (this is more reliable than /application)
       const measurementsResponse = await this.request('GET', '/measurements');
@@ -275,17 +372,40 @@ export class REWApiClient {
         };
       }
 
-      const measurementCount = Array.isArray(measurementsResponse.data) 
-        ? measurementsResponse.data.length 
-        : 0;
+      const compatibility = checkApiCompatibility(apiVersion);
 
-      // Try to get application info (optional - may not exist in all versions)
-      const appResponse = await this.request('GET', '/application');
-      const appData = appResponse.data as Record<string, unknown> | undefined;
-      const rewVersion = appResponse.status === 200 ? (appData?.version as string) : apiVersion;
-      const hasProFeatures = appResponse.status === 200 ? ((appData?.proFeatures as boolean) || false) : false;
+      // Current REW returns measurements as an index-keyed object; the array
+      // form is a legacy/assumed shape kept for back-compat.
+      const measurementData = measurementsResponse.data;
+      const measurementIsObject = measurementData !== null && typeof measurementData === 'object';
+      // Hard-fail on an unexpected shape rather than silently reporting 0 measurements:
+      // a non-null primitive body means the response contract is not what we understand
+      // (most likely an incompatible REW API version).
+      if (measurementData !== null && measurementData !== undefined && !measurementIsObject) {
+        return {
+          connected: false,
+          api_version: apiVersion,
+          api_version_supported: compatibility.supported,
+          compatibility_warning: compatibility.warning,
+          measurements_available: 0,
+          api_capabilities: { pro_features: false, blocking_mode: false },
+          error_message: `Unexpected /measurements response shape (got ${typeof measurementData}); this usually means an incompatible REW API version. Client targets API ${SUPPORTED_API_VERSION}, REW reports ${apiVersion ?? 'unknown'}.`
+        };
+      }
+      const measurementCount = Array.isArray(measurementData)
+        ? measurementData.length // legacy array form
+        : (measurementIsObject ? Object.keys(measurementData as Record<string, unknown>).length : 0);
 
-      // Check for blocking mode capability (optional)
+      // The bare GET /application endpoint was removed in current REW builds
+      // (404 on API 0.9.5). Application/API versions now come from /version.
+      const rewVersion = reportedRewVersion;
+
+      // Pro features are not detectable via the REST API: API 0.9.5 exposes no
+      // pro/license/feature endpoint. Report false; a Pro-gated operation (e.g. a
+      // sweep measurement) simply fails at call time if the licence is missing.
+      const hasProFeatures = false;
+
+      // Check for blocking mode capability (GET /application/blocking → boolean).
       const blockingResponse = await this.request('GET', '/application/blocking');
       const hasBlocking = blockingResponse.status === 200;
 
@@ -294,6 +414,9 @@ export class REWApiClient {
       return {
         connected: true,
         rew_version: rewVersion,
+        api_version: apiVersion,
+        api_version_supported: compatibility.supported,
+        compatibility_warning: compatibility.warning,
         measurements_available: measurementCount,
         api_capabilities: {
           pro_features: hasProFeatures,
@@ -318,47 +441,48 @@ export class REWApiClient {
     server_responding: boolean;
     openapi_available: boolean;
     api_version?: string;
+    rew_version?: string;
     error?: string;
     suggestion?: string;
   }> {
-    // Try the OpenAPI spec first
-    const docResponse = await this.request('GET', '/doc.json');
-    
-    if (docResponse.status === 0) {
+    // Probe the lightweight /version endpoint first for liveness and version info
+    const versionInfo = await this.getVersion();
+
+    if (versionInfo.status === 0) {
       return {
         server_responding: false,
         openapi_available: false,
-        error: docResponse.error || 'Connection refused',
+        error: versionInfo.error || 'Connection refused',
         suggestion: 'REW is not responding. Ensure REW is running and go to Preferences → API → click "Start".'
       };
     }
 
-    if (docResponse.status === 404) {
+    if (versionInfo.status === 404) {
       // Something is responding but it's not the REW API
       return {
         server_responding: true,
         openapi_available: false,
-        error: 'HTTP 404 - API spec not found',
+        error: 'HTTP 404 - /version not found',
         suggestion: 'A server is responding but the REW API is not available. Check: (1) REW version is 5.30+, (2) API is enabled and started in Preferences → API, (3) Port number is correct.'
       };
     }
 
-    if (docResponse.status === 200) {
-      // Extract version from OpenAPI spec if available
-      const docData = docResponse.data as Record<string, unknown> | undefined;
-      const version = docData?.info ? ((docData.info as Record<string, unknown>).version as string) : undefined;
+    if (versionInfo.status !== 200) {
       return {
         server_responding: true,
-        openapi_available: true,
-        api_version: version
+        openapi_available: false,
+        error: `Unexpected status: ${versionInfo.status}`,
+        suggestion: 'Check REW API settings and try restarting the API server.'
       };
     }
 
+    // Server is up; check whether the OpenAPI document is also available (diagnostic only)
+    const docResponse = await this.request('GET', '/doc.json');
     return {
       server_responding: true,
-      openapi_available: false,
-      error: `Unexpected status: ${docResponse.status}`,
-      suggestion: 'Check REW API settings and try restarting the API server.'
+      openapi_available: docResponse.status === 200,
+      api_version: versionInfo.api_version,
+      rew_version: versionInfo.rew_version
     };
   }
 
@@ -383,30 +507,30 @@ export class REWApiClient {
   async listMeasurements(): Promise<MeasurementInfo[]> {
     const response = await this.request('GET', '/measurements');
 
-    if (response.status !== 200 || !Array.isArray(response.data)) {
+    if (response.status !== 200 || response.data === null || typeof response.data !== 'object') {
       return [];
     }
 
-    return response.data.map((m: unknown, index: number) => {
+    // Current REW returns measurements as an object keyed by a 1-based index
+    // string ({ "1": {...}, "2": {...} }). The array shape is a legacy/assumed
+    // form kept for back-compat. Normalise both to [indexKey, measurement] pairs.
+    const entries: Array<[string, unknown]> = Array.isArray(response.data)
+      ? response.data.map((m, i) => [String(i + 1), m]) // legacy array form
+      : Object.entries(response.data as Record<string, unknown>);
+
+    return entries.map(([key, m]) => {
+      const rec = (m ?? {}) as Record<string, unknown>;
       const parsed = MeasurementInfoSchema.safeParse(m);
-      if (!parsed.success) {
-        // Fallback for malformed data
-        return {
-          uuid: String((m as Record<string, unknown>)?.uuid ?? (m as Record<string, unknown>)?.id ?? `measurement-${index}`),
-          name: String((m as Record<string, unknown>)?.name ?? `Measurement ${index + 1}`),
-          index,
-          type: 'unknown',
-          has_ir: false,
-          has_fr: false
-        };
-      }
+      const data: Record<string, unknown> = parsed.success ? parsed.data : rec;
+      const keyIndex = Number.parseInt(key, 10);
       return {
-        uuid: parsed.data.uuid || parsed.data.id || `measurement_${index}`,
-        name: parsed.data.name || `Measurement ${index + 1}`,
-        index: parsed.data.index ?? index,
-        type: parsed.data.type || 'unknown',
-        has_ir: parsed.data.has_ir ?? (parsed.data.hasImpulse !== false),
-        has_fr: parsed.data.has_fr ?? (parsed.data.hasFrequencyResponse !== false)
+        uuid: String(data.uuid ?? data.id ?? `measurement_${key}`),
+        // REW uses `title`; assumed/legacy shapes use `name`.
+        name: String(data.name ?? data.title ?? `Measurement ${key}`),
+        index: typeof data.index === 'number' ? data.index : (Number.isNaN(keyIndex) ? 0 : keyIndex),
+        type: typeof data.type === 'string' ? data.type : 'unknown',
+        has_ir: typeof data.has_ir === 'boolean' ? data.has_ir : (data.hasImpulse !== false),
+        has_fr: typeof data.has_fr === 'boolean' ? data.has_fr : (data.hasFrequencyResponse !== false)
       };
     });
   }
@@ -425,13 +549,47 @@ export class REWApiClient {
 
     return {
       uuid: (data.uuid as string) || uuid,
-      name: (data.name as string) || 'Unknown',
+      // REW labels measurements with `title`; `name` is the assumed/legacy key.
+      name: (data.name as string) || (data.title as string) || 'Unknown',
       metadata: {
         sample_rate_hz: data.sampleRate as number | undefined,
-        start_time: data.startTime as string | undefined,
+        start_time: (data.startTime as string) || (data.date as string) || undefined,
         notes: data.notes as string | undefined
       }
     };
+  }
+
+  /**
+   * Decode a REW `FrequencyResponse` object (base64 magnitude/phase plus a
+   * frequency axis expressed either as `ppo` for log-spaced data or `freqStep`
+   * for linear-spaced FFT data). Shared by all endpoints that return this shape
+   * (frequency-response, group-delay, target-response, eq/frequency-response).
+   */
+  private decodeFrequencyResponse(data: FrequencyResponse): {
+    frequencies_hz: number[];
+    magnitude: number[];
+    phase_degrees: number[];
+  } {
+    const magnitude = data.magnitude ? decodeREWFloatArray(data.magnitude) : [];
+    const phase = data.phase ? decodeREWFloatArray(data.phase) : magnitude.map(() => 0);
+
+    let frequencies: number[] = [];
+    const startFreq = data.startFreq;
+    const ppo = data.ppo;
+    const freqStep = data.freqStep;
+
+    if (startFreq !== undefined && magnitude.length > 0) {
+      if (ppo !== undefined && ppo > 0) {
+        // Log-spaced data: freq[i] = startFreq * 2^(i/ppo)
+        const logRatio = Math.log(2) / ppo;
+        frequencies = magnitude.map((_, i) => startFreq * Math.exp(i * logRatio));
+      } else if (freqStep !== undefined && freqStep > 0) {
+        // Linear-spaced FFT data: freq[i] = startFreq + i * freqStep
+        frequencies = magnitude.map((_, i) => startFreq + i * freqStep);
+      }
+    }
+
+    return { frequencies_hz: frequencies, magnitude, phase_degrees: phase };
   }
 
   /**
@@ -591,49 +749,88 @@ export class REWApiClient {
   }
 
   /**
-   * Get waterfall data
+   * Get waterfall (cumulative spectral decay) data for a measurement.
    *
-   * @deprecated This endpoint may not exist in the official REW API.
-   * Per audit (Jan 2026): No evidence found in official REW API documentation
-   * for a direct waterfall data retrieval endpoint. The API supports generating
-   * waterfall graphs via commands but may not stream raw waterfall matrix data.
-   * Consider deriving waterfall data from impulse response instead.
+   * There is no GET endpoint for waterfall data. REW computes it on demand via
+   * the "Generate waterfall" command on POST /measurements/{id}/command, and — in
+   * blocking mode — returns the full 2D matrix in the command response as a
+   * `ProcessResult`. The response body is `{ message: "<JSON ProcessResult>" }`
+   * whose `results["0"]` holds:
+   *   - "0".."N-1": base64 float32 (big-endian) magnitudes per time slice (dB)
+   *   - "Frequencies": base64 float32 frequency axis (Hz)
+   *   - "Times": base64 float32 slice times (seconds)
+   *
+   * Blocking mode is required for the data to be returned synchronously; it is
+   * enabled for the duration of the call and restored to its previous state
+   * afterwards. Magnitude bins REW leaves undefined (NaN, typically the lowest
+   * frequencies) are floored to -200 dB so the result stays finite.
    */
-  async getWaterfallData(uuid: string): Promise<WaterfallData> {
-    console.warn('REW API: getWaterfallData endpoint may not exist in official REW API');
+  async getWaterfallData(uuid: string, options?: WaterfallOptions): Promise<WaterfallData> {
+    const parameters: Record<string, unknown> = {
+      'mode': options?.mode ?? 'Fourier',
+      'slices': options?.slices ?? 10,
+      'left window type': options?.leftWindowType ?? 'Hann',
+      'right window type': options?.rightWindowType ?? 'Hann',
+      'window width ms': options?.windowWidthMs ?? 300,
+      'time range ms': options?.timeRangeMs ?? 300,
+      'rise time ms': options?.riseTimeMs ?? 100,
+      'use csd mode': options?.useCsdMode ?? false,
+      'ppo': options?.ppo ?? 48,
+      'smoothing': options?.smoothing ?? 'None',
+    };
 
-    const response = await this.request('GET', `/measurements/${uuid}/waterfall`);
-
-    if (response.status !== 200 || !response.data) {
-      this.handleResponseError(response, `Waterfall data for ${uuid}`);
-    }
-
-    const rawData = response.data as Record<string, unknown>;
-
-    // Decode frequency array
-    const frequencies = rawData.frequencies
-      ? decodeREWFloatArray(rawData.frequencies as string)
-      : [];
-
-    // Time slices
-    const timeSlices = (rawData.timeSlices as number[]) || [];
-
-    // Magnitude data (2D array)
-    const magnitude: number[][] = [];
-    if (Array.isArray(rawData.magnitude)) {
-      for (const slice of rawData.magnitude) {
-        if (typeof slice === 'string') {
-          magnitude.push(decodeREWFloatArray(slice));
-        } else if (Array.isArray(slice)) {
-          magnitude.push(slice);
-        }
+    const wasBlocking = await this.getBlockingMode();
+    let response;
+    try {
+      if (!wasBlocking) {
+        await this.setBlockingMode(true);
+      }
+      response = await this.request('POST', `/measurements/${uuid}/command`, {
+        command: 'Generate waterfall',
+        parameters,
+      });
+    } finally {
+      if (!wasBlocking) {
+        await this.setBlockingMode(false);
       }
     }
 
+    if (response.status !== 200 && response.status !== 202) {
+      this.handleResponseError(response, `Waterfall data for ${uuid}`);
+    }
+
+    // In blocking mode the command returns the ProcessResult as a JSON string in
+    // `message`; without blocking it is only an "…in progress" acknowledgement.
+    const envelope = response.data as { message?: string };
+    let processResult: { results?: Record<string, Record<string, string>> };
+    try {
+      processResult = JSON.parse(envelope.message ?? '') as typeof processResult;
+    } catch {
+      throw new REWApiError(
+        'Waterfall data was not returned; enable blocking mode so the Generate waterfall command responds with the computed matrix',
+        'INVALID_RESPONSE',
+        response.status
+      );
+    }
+
+    const grid = processResult.results?.['0'];
+    if (!grid) {
+      throw new REWApiError('Waterfall ProcessResult did not contain a data grid', 'INVALID_RESPONSE', response.status);
+    }
+
+    const frequencies = grid.Frequencies ? decodeREWFloatArray(grid.Frequencies) : [];
+    const timesSeconds = grid.Times ? decodeREWFloatArray(grid.Times) : [];
+    const sliceKeys = Object.keys(grid)
+      .filter((k) => /^\d+$/.test(k))
+      .sort((a, b) => Number(a) - Number(b));
+    const magnitude = sliceKeys.map((k) =>
+      decodeREWFloatArray(grid[k]).map((v) => (Number.isFinite(v) ? v : -200))
+    );
+
     const result = {
       frequencies_hz: frequencies,
-      time_slices_ms: timeSlices,
-      magnitude_db: magnitude
+      time_slices_ms: timesSeconds.map((s) => s * 1000),
+      magnitude_db: magnitude,
     };
 
     return validateApiResponse(WaterfallSchema, result, 'getWaterfallData');
@@ -668,13 +865,20 @@ export class REWApiClient {
       this.handleResponseError(response, `RT60 data for ${uuid}`);
     }
 
-    const data = response.data as Record<string, unknown>;
+    // REW returns a map keyed by centre frequency (as a string) → RT60Result.
+    // The unfiltered/broadband result is mapped to the "0.0" key. RT60 data must
+    // first be generated with the "Generate RT60" command; until then REW replies
+    // with a { message } object and a 4xx status (handled above).
+    const bands = Object.values(response.data as Record<string, RT60Result>)
+      .filter((b): b is RT60Result => b !== null && typeof b === 'object' && 'fc' in b)
+      .sort((a, b) => (a.fc ?? 0) - (b.fc ?? 0));
 
     const result = {
-      frequencies_hz: data.frequencies ? decodeREWFloatArray(data.frequencies as string) : [],
-      t20_seconds: data.t20 ? decodeREWFloatArray(data.t20 as string) : [],
-      t30_seconds: data.t30 ? decodeREWFloatArray(data.t30 as string) : [],
-      edt_seconds: data.edt ? decodeREWFloatArray(data.edt as string) : []
+      frequencies_hz: bands.map((b) => b.fc ?? 0),
+      t20_seconds: bands.map((b) => b.T20 ?? 0),
+      t30_seconds: bands.map((b) => b.T30 ?? 0),
+      edt_seconds: bands.map((b) => b.EDT ?? 0),
+      topt_seconds: bands.map((b) => b.Topt ?? 0),
     };
 
     return validateApiResponse(RT60Schema, result, 'getRT60');
@@ -718,36 +922,43 @@ export class REWApiClient {
    * Common commands: "Measure", "SPL", "Impedance", "Cancel"
    * API expects: { command: "Measure", parameters: [] }
    */
-  async executeMeasureCommand(command: string, parameters?: string[]): Promise<{
-    success: boolean;
-    status: number;
-    message?: string;
-    data?: unknown;
-  }> {
-    const body = { 
-      command, 
-      parameters: parameters || [] 
+  async executeMeasureCommand(command: string, parameters?: string[]): Promise<MeasureCommandResult> {
+    const body = {
+      command,
+      parameters: parameters || []
     };
-    
+
     const response = await this.request('POST', '/measure/command', body);
-    
+
+    // Without a Pro licence REW rejects API-triggered measurements with HTTP 401
+    // and a plain-text body ("A Pro upgrade license is required for this action").
+    const rawMessage = typeof response.data === 'string'
+      ? response.data
+      : ((response.data as { message?: string } | undefined)?.message ?? '');
+    const proLicenseRequired =
+      response.status === 401 || /pro upgrade licen[cs]e/i.test(rawMessage);
+
     return {
       success: response.status === 200 || response.status === 202,
       status: response.status,
-      message: response.status === 202 ? 'Measurement started (async)' : undefined,
-      data: response.data
+      message: response.status === 202
+        ? 'Measurement started (async)'
+        : (proLicenseRequired ? (rawMessage || 'A Pro upgrade license is required for this action') : undefined),
+      data: response.data,
+      proLicenseRequired
     };
   }
 
   /**
-   * Get current measurement level
+   * Get current measurement level.
+   * Response is a Value { value, unit } (not { level, unit }).
    */
-  async getMeasureLevel(): Promise<{ level: number; unit: string }> {
+  async getMeasureLevel(): Promise<MeasureValue> {
     const response = await this.request('GET', '/measure/level');
     if (response.status !== 200) {
       this.handleResponseError(response, 'Measurement level');
     }
-    return response.data as { level: number; unit: string };
+    return response.data as MeasureValue;
   }
 
   /**
@@ -775,37 +986,37 @@ export class REWApiClient {
   }
 
   /**
-   * Get sweep configuration
+   * Get sweep configuration.
+   * Response is MeasSweepConfiguration { startFrequency, endFrequency,
+   * length (string, e.g. "128k"), fillSilenceWithDither }.
    */
-  async getSweepConfig(): Promise<{
-    startFreq: number;
-    endFreq: number;
-    length: number;
-    fillSilenceWithDither?: boolean;
-  }> {
+  async getSweepConfig(): Promise<MeasSweepConfiguration> {
     const response = await this.request('GET', '/measure/sweep/configuration');
     if (response.status !== 200) {
       this.handleResponseError(response, 'Sweep configuration');
     }
-    return response.data as {
-      startFreq: number;
-      endFreq: number;
-      length: number;
-      fillSilenceWithDither?: boolean;
-    };
+    return response.data as MeasSweepConfiguration;
   }
 
   /**
-   * Set sweep configuration
+   * Set sweep configuration. Body fields are startFrequency/endFrequency and a
+   * string `length` from the sweep-lengths list (see getSweepLengths).
    */
-  async setSweepConfig(config: {
-    startFreq?: number;
-    endFreq?: number;
-    length?: number;
-    fillSilenceWithDither?: boolean;
-  }): Promise<boolean> {
+  async setSweepConfig(config: MeasSweepConfiguration): Promise<boolean> {
     const response = await this.request('POST', '/measure/sweep/configuration', config);
     return response.status === 200;
+  }
+
+  /**
+   * Get the available sweep lengths (e.g. "64k", "128k", ..., "4M").
+   * Path moved to /measure/sweep/configuration/sweep-lengths; values are strings.
+   */
+  async getSweepLengths(): Promise<string[]> {
+    const response = await this.request('GET', '/measure/sweep/configuration/sweep-lengths');
+    if (response.status !== 200) {
+      return [];
+    }
+    return Array.isArray(response.data) ? response.data as string[] : [];
   }
 
   /**
@@ -820,14 +1031,12 @@ export class REWApiClient {
   }
 
   /**
-   * Set measurement naming settings
+   * Set measurement naming settings.
+   * Body is MeasurementNaming { title, namingOption, nextNumber, numberIncrement,
+   * dateTimeFormat, prefixMeasNameWithOutput, appendLevelToMeasName }.
+   * (The old prefix/includeDate/includeTime fields do not exist in the API.)
    */
-  async setMeasureNaming(naming: {
-    prefix?: string;
-    includeDate?: boolean;
-    includeTime?: boolean;
-    dateTimeFormat?: string;
-  }): Promise<boolean> {
+  async setMeasureNaming(naming: MeasurementNaming): Promise<boolean> {
     const response = await this.request('POST', '/measure/naming', naming);
     return response.status === 200;
   }
@@ -866,20 +1075,12 @@ export class REWApiClient {
   /**
    * Get audio status
    */
-  async getAudioStatus(): Promise<{
-    enabled: boolean;
-    ready: boolean;
-    driver?: string;
-  }> {
-    const response = await this.request('GET', '/audio');
+  async getAudioStatus(): Promise<AudioStatus> {
+    const response = await this.request('GET', '/audio/status');
     if (response.status !== 200) {
       this.handleResponseError(response, 'Audio status');
     }
-    return response.data as {
-      enabled: boolean;
-      ready: boolean;
-      driver?: string;
-    };
+    return response.data as AudioStatus;
   }
 
   /**
@@ -890,7 +1091,7 @@ export class REWApiClient {
     if (response.status !== 200) {
       this.handleResponseError(response, 'Audio driver');
     }
-    return response.data as string;
+    return (response.data as Driver).driver ?? '';
   }
 
   /**
@@ -912,7 +1113,7 @@ export class REWApiClient {
     if (response.status !== 200) {
       this.handleResponseError(response, 'Sample rate');
     }
-    return response.data as number;
+    return (response.data as Value).value ?? 0;
   }
 
   /**
@@ -923,7 +1124,9 @@ export class REWApiClient {
     if (response.status !== 200) {
       return [];
     }
-    return Array.isArray(response.data) ? response.data : [];
+    return Array.isArray(response.data)
+      ? (response.data as Value[]).map((v) => v.value ?? 0)
+      : [];
   }
 
   /**
@@ -966,7 +1169,7 @@ export class REWApiClient {
     if (response.status !== 200) {
       this.handleResponseError(response, 'Java input device');
     }
-    return response.data as string;
+    return (response.data as Device).device ?? '';
   }
 
   /**
@@ -987,7 +1190,7 @@ export class REWApiClient {
     if (response.status !== 200) {
       this.handleResponseError(response, 'Java output device');
     }
-    return response.data as string;
+    return (response.data as Device).device ?? '';
   }
 
   /**
@@ -1034,11 +1237,12 @@ export class REWApiClient {
       this.request('GET', '/generator/level'),
       this.request('GET', '/generator/commands'),
     ]);
-    const levelData = levelResp.status === 200 ? levelResp.data as Record<string, unknown> : {};
+    const levelData = levelResp.status === 200 ? levelResp.data as Value : {};
+    const signalData = signalResp.status === 200 ? signalResp.data as Signal : {};
     return {
-      signal: signalResp.status === 200 ? (signalResp.data as string) : 'unknown',
-      level: (levelData?.value as number) ?? 0,
-      level_unit: (levelData?.unit as string) ?? 'dBFS',
+      signal: signalData.signal ?? 'unknown',
+      level: levelData.value ?? 0,
+      level_unit: levelData.unit ?? 'dBFS',
       available_commands: commandsResp.status === 200 && Array.isArray(commandsResp.data) ? commandsResp.data : [],
     };
   }
@@ -1055,37 +1259,37 @@ export class REWApiClient {
   }
 
   /**
-   * Get current generator signal
+   * Get current generator signal name.
+   * Response is Signal { signal }, not a bare string.
    */
   async getGeneratorSignal(): Promise<string> {
     const response = await this.request('GET', '/generator/signal');
     if (response.status !== 200) {
       this.handleResponseError(response, 'Generator signal');
     }
-    return response.data as string;
+    return (response.data as Signal).signal ?? '';
   }
 
   /**
-   * Set generator signal
-   *
-   * Per REW API docs: "A PUT selects a new signal"
-   * The PUT body should be the signal object/name
+   * Set generator signal.
+   * Uses POST (there is no PUT) with a Signal body { signal: "<name>" }.
+   * Valid names come from GET /generator/signals (e.g. "pinknoise",
+   * "logsweep"), not display strings like "Pink noise".
    */
   async setGeneratorSignal(signal: string): Promise<boolean> {
-    // REW API docs specify PUT for signal selection
-    const response = await this.request('PUT', '/generator/signal', signal);
+    const response = await this.request('POST', '/generator/signal', { signal });
     return response.status === 200;
   }
 
   /**
-   * Get generator level
+   * Get generator level as a Value { value, unit }.
    */
-  async getGeneratorLevel(): Promise<{ level: number; unit: string }> {
+  async getGeneratorLevel(): Promise<Value> {
     const response = await this.request('GET', '/generator/level');
     if (response.status !== 200) {
       this.handleResponseError(response, 'Generator level');
     }
-    return response.data as { level: number; unit: string };
+    return response.data as Value;
   }
 
   /**
@@ -1100,14 +1304,16 @@ export class REWApiClient {
   }
 
   /**
-   * Get generator frequency (for tone signals)
+   * Get generator frequency (for tone signals) in Hz.
+   * Response is a Value { value, unit }; `value` is omitted for noise signals,
+   * so this returns 0 when no tone frequency is set.
    */
   async getGeneratorFrequency(): Promise<number> {
     const response = await this.request('GET', '/generator/frequency');
     if (response.status !== 200) {
       this.handleResponseError(response, 'Generator frequency');
     }
-    return response.data as number;
+    return (response.data as Value).value ?? 0;
   }
 
   /**
@@ -1166,26 +1372,18 @@ export class REWApiClient {
   }
 
   /**
-   * Get SPL meter levels
+   * Get SPL meter levels.
+   *
+   * Returns the full SPLValues payload. Note the frequency weighting is split
+   * into splWeighting/leqWeighting/selWeighting (there is no single `weighting`
+   * field), and `filter` is the time weighting (Fast/Slow).
    */
-  async getSPLMeterLevels(meterId: number): Promise<{
-    spl: number;
-    leq: number;
-    sel: number;
-    weighting: string;
-    filter: string;
-  }> {
+  async getSPLMeterLevels(meterId: number): Promise<SPLValues> {
     const response = await this.request('GET', `/spl-meter/${meterId}/levels`);
     if (response.status !== 200) {
       this.handleResponseError(response, `SPL meter ${meterId} levels`);
     }
-    return response.data as {
-      spl: number;
-      leq: number;
-      sel: number;
-      weighting: string;
-      filter: string;
-    };
+    return response.data as SPLValues;
   }
 
   /**
@@ -1200,14 +1398,36 @@ export class REWApiClient {
   }
 
   /**
-   * Set SPL meter configuration
+   * Set SPL meter configuration.
+   *
+   * Accepts the real SPLMeterConfiguration fields plus two convenience aliases,
+   * which are expanded before posting (the REW API has no `mode`/`weighting`
+   * fields, so passing them raw would be silently ignored):
+   *  - `weighting` (A/C/Z) → splWeighting + leqWeighting + selWeighting
+   *  - `mode` ('SPL'|'Leq'|'SEL') → showSPL/showLeq/showSEL
    */
-  async setSPLMeterConfig(meterId: number, config: {
-    mode?: string;
-    weighting?: string;
-    filter?: string;
-  }): Promise<boolean> {
-    const response = await this.request('POST', `/spl-meter/${meterId}/configuration`, config);
+  async setSPLMeterConfig(meterId: number, config: SPLMeterConfigInput): Promise<boolean> {
+    const body: SPLMeterConfiguration = {};
+    const rawKeys: (keyof SPLMeterConfiguration)[] = [
+      'showSPL', 'showLeq', 'showSEL', 'splWeighting', 'leqWeighting', 'selWeighting',
+      'filter', 'highPassActive', 'rollingLeqActive', 'rollingLeqMinutes'
+    ];
+    for (const key of rawKeys) {
+      if (config[key] !== undefined) {
+        (body[key] as unknown) = config[key];
+      }
+    }
+    if (config.weighting !== undefined) {
+      body.splWeighting = config.weighting;
+      body.leqWeighting = config.weighting;
+      body.selWeighting = config.weighting;
+    }
+    if (config.mode !== undefined) {
+      body.showSPL = config.mode === 'SPL';
+      body.showLeq = config.mode === 'Leq';
+      body.showSEL = config.mode === 'SEL';
+    }
+    const response = await this.request('POST', `/spl-meter/${meterId}/configuration`, body);
     return response.status === 200;
   }
 
@@ -1228,19 +1448,20 @@ export class REWApiClient {
 
   /**
    * Start input level monitoring
-   * API expects: { command: "start" }
+   * API expects a Command body: { command: "Start", parameters: [] }
+   * (canonical casing per GET /input-levels/commands)
    */
   async startInputLevelMonitoring(): Promise<boolean> {
-    const response = await this.request('POST', '/input-levels/command', { command: 'start' });
+    const response = await this.request('POST', '/input-levels/command', { command: 'Start', parameters: [] });
     return response.status === 200 || response.status === 202;
   }
 
   /**
    * Stop input level monitoring
-   * API expects: { command: "stop" }
+   * API expects a Command body: { command: "Stop", parameters: [] }
    */
   async stopInputLevelMonitoring(): Promise<boolean> {
-    const response = await this.request('POST', '/input-levels/command', { command: 'stop' });
+    const response = await this.request('POST', '/input-levels/command', { command: 'Stop', parameters: [] });
     return response.status === 200 || response.status === 202;
   }
 
@@ -1257,17 +1478,15 @@ export class REWApiClient {
 
   /**
    * Get latest input levels (RMS and peak per channel)
-   * @param unit - Optional unit (e.g., "dBFS")
+   *
+   * The unit is determined by REW's input level configuration and reported
+   * in the response. GET /input-levels/last-levels takes no query parameters
+   * (API 0.9.5); any unit selection must be made via REW itself.
+   *
    * @returns InputLevels object or null if monitoring not active or validation fails
    */
-  async getInputLevels(unit?: string): Promise<InputLevels | null> {
-    let path = '/input-levels/last-levels';
-    if (unit) {
-      const params = new URLSearchParams({ unit });
-      path += `?${params.toString()}`;
-    }
-
-    const response = await this.request('GET', path);
+  async getInputLevels(): Promise<InputLevels | null> {
+    const response = await this.request('GET', '/input-levels/last-levels');
 
     if (response.status !== 200 || !response.data) {
       return null;
@@ -1304,18 +1523,12 @@ export class REWApiClient {
     if (response.status !== 200 || !response.data) {
       this.handleResponseError(response, `Group delay for ${uuid}`);
     }
-    const data = response.data as Record<string, unknown>;
-    const frequencies = data.frequencies
-      ? decodeREWFloatArray(data.frequencies as string)
-      : (Array.isArray(data.frequencies_hz) ? data.frequencies_hz as number[] : []);
-    const groupDelay = data.groupDelay
-      ? decodeREWFloatArray(data.groupDelay as string)
-      : (data.group_delay_ms
-        ? decodeREWFloatArray(data.group_delay_ms as string)
-        : []);
+    // Response is a FrequencyResponse whose base64 `magnitude` carries the
+    // group-delay values in seconds (unit "s"); convert to milliseconds.
+    const decoded = this.decodeFrequencyResponse(response.data as FrequencyResponse);
     const result: GroupDelayData = {
-      frequencies_hz: frequencies,
-      group_delay_ms: groupDelay,
+      frequencies_hz: decoded.frequencies_hz,
+      group_delay_ms: decoded.magnitude.map((s) => s * 1000),
     };
     return validateApiResponse(GroupDelaySchema, result, 'getGroupDelay');
   }
@@ -1328,19 +1541,34 @@ export class REWApiClient {
     if (response.status !== 200 || !response.data) {
       this.handleResponseError(response, `Distortion data for ${uuid}`);
     }
-    const data = response.data as Record<string, unknown>;
-    const frequencies = data.frequencies
-      ? decodeREWFloatArray(data.frequencies as string)
-      : (Array.isArray(data.frequencies_hz) ? data.frequencies_hz as number[] : []);
-    const thd = data.thd
-      ? decodeREWFloatArray(data.thd as string)
-      : (data.thd_percent
-        ? decodeREWFloatArray(data.thd_percent as string)
-        : []);
+    // Response is a tabular Distortion object: `columnHeaders` names each column
+    // ("Freq (Hz)", "Fundamental (dB)", "THD (%)", "Noise (%)", "H2 (%)"..."H9 (%)")
+    // and `data` is a row-per-frequency matrix of doubles (number[][] live,
+    // despite the spec declaring a flat array).
+    const data = response.data as Omit<Distortion, 'data'> & { data?: number[][] };
+    const headers = data.columnHeaders ?? [];
+    const rows: number[][] = Array.isArray(data.data) ? data.data : [];
+
+    const colIndex = (predicate: (h: string) => boolean): number =>
+      headers.findIndex((h) => predicate(h));
+    const column = (idx: number): number[] =>
+      idx < 0 ? [] : rows.map((row) => row[idx] ?? 0);
+
+    const freqIdx = colIndex((h) => /^freq/i.test(h));
+    const thdIdx = colIndex((h) => /^thd/i.test(h));
+
+    const harmonics: Record<string, number[]> = {};
+    headers.forEach((h, idx) => {
+      const match = /^(H\d+)/i.exec(h);
+      if (match) {
+        harmonics[match[1].toUpperCase()] = column(idx);
+      }
+    });
+
     const result: DistortionData = {
-      frequencies_hz: frequencies,
-      thd_percent: thd,
-      harmonics: data.harmonics as Record<string, number[]> | undefined,
+      frequencies_hz: column(freqIdx),
+      thd_percent: column(thdIdx),
+      harmonics: Object.keys(harmonics).length > 0 ? harmonics : undefined,
     };
     return validateApiResponse(DistortionSchema, result, 'getDistortion');
   }
@@ -1385,11 +1613,7 @@ export class REWApiClient {
    * "Generate minimum phase", "Smooth", "Normalise", "Invert", "Offset",
    * "Trim IR", "Window", "Time align", "Delete", etc.
    */
-  async executeMeasurementCommand(uuid: string, command: string, parameters?: string[]): Promise<{
-    success: boolean;
-    status: number;
-    data?: unknown;
-  }> {
+  async executeMeasurementCommand(uuid: string, command: string, parameters?: string[]): Promise<CommandExecutionResult> {
     const response = await this.request('POST', `/measurements/${uuid}/command`, {
       command,
       parameters: parameters || [],
@@ -1419,11 +1643,7 @@ export class REWApiClient {
   /**
    * Execute a bulk measurement command (Load, Save all, Dirac pulse, etc.)
    */
-  async executeMeasurementsCommand(command: string, parameters?: string[]): Promise<{
-    success: boolean;
-    status: number;
-    data?: unknown;
-  }> {
+  async executeMeasurementsCommand(command: string, parameters?: string[]): Promise<CommandExecutionResult> {
     const response = await this.request('POST', '/measurements/command', {
       command,
       parameters: parameters || [],
@@ -1447,35 +1667,58 @@ export class REWApiClient {
   }
 
   /**
-   * Apply arithmetic operation between two measurements (A+B, A-B, A*B, A/B)
+   * Apply an arithmetic operation between two measurements.
+   *
+   * REW has no standalone `/measurements/arithmetic` endpoint; arithmetic is the
+   * "Arithmetic" process command routed through `/measurements/process-measurements`
+   * with the chosen function (from `getArithmeticFunctions`, e.g. "A + B", "A - B",
+   * "A * B", "A / B") supplied as the `function` parameter. The resulting new
+   * measurement is read back from `/measurements/process-result`.
    */
-  async executeArithmetic(operation: string, measurementA: string, measurementB: string): Promise<{
+  async executeArithmetic(func: string, measurementA: string, measurementB: string): Promise<{
     success: boolean;
     uuid?: string;
   }> {
-    const response = await this.request('POST', '/measurements/arithmetic', {
-      operation,
-      measurementA,
-      measurementB,
-    });
-    const data = response.data as Record<string, unknown> | undefined;
+    const process = await this.processMeasurements(
+      [measurementA, measurementB],
+      'Arithmetic',
+      { function: func }
+    );
+    if (!process.success) {
+      return { success: false };
+    }
+
+    const resultResponse = await this.request('GET', '/measurements/process-result');
+    const result = resultResponse.data as {
+      results?: Record<string, { UUID?: string }>;
+    } | undefined;
+    const firstResult = result?.results ? Object.values(result.results)[0] : undefined;
+
     return {
-      success: response.status === 200 || response.status === 201,
-      uuid: data?.uuid as string | undefined,
+      success: true,
+      uuid: firstResult?.UUID,
     };
   }
 
   /**
-   * Batch-process multiple measurements with a command
+   * Batch-process multiple measurements with a process command.
+   *
+   * Body is a `ProcessMeasurements` object: the command goes in `processName`,
+   * the targets in `measurementUUIDs`, and any command-specific arguments in the
+   * `parameters` map (e.g. `{ function: "A + B" }` for Arithmetic).
    */
-  async processMeasurements(uuids: string[], command: string, parameters?: string[]): Promise<{
+  async processMeasurements(
+    uuids: string[],
+    command: string,
+    parameters?: Record<string, unknown>
+  ): Promise<{
     success: boolean;
     status: number;
   }> {
     const response = await this.request('POST', '/measurements/process-measurements', {
-      measurements: uuids,
-      command,
-      parameters: parameters || [],
+      processName: command,
+      measurementUUIDs: uuids,
+      parameters: parameters ?? {},
     });
     return {
       success: response.status === 200 || response.status === 202,
@@ -1532,20 +1775,21 @@ export class REWApiClient {
   /**
    * Get EQ filters applied to a measurement
    */
-  async getMeasurementFilters(uuid: string): Promise<unknown[]> {
+  async getMeasurementFilters(uuid: string): Promise<FilterSetting[]> {
     const response = await this.request('GET', `/measurements/${uuid}/filters`);
     if (response.status !== 200) {
       return [];
     }
-    return Array.isArray(response.data) ? response.data : [];
+    return Array.isArray(response.data) ? (response.data as FilterSetting[]) : [];
   }
 
   /**
-   * Set EQ filters on a measurement
+   * Set EQ filters on a measurement.
+   * Body is a `FilterList` wrapper: `{ filters: [...] }` (a raw array is rejected).
    */
-  async setMeasurementFilters(uuid: string, filters: unknown[]): Promise<boolean> {
-    const response = await this.request('POST', `/measurements/${uuid}/filters`, filters);
-    return response.status === 200;
+  async setMeasurementFilters(uuid: string, filters: FilterSetting[]): Promise<boolean> {
+    const response = await this.request('POST', `/measurements/${uuid}/filters`, { filters });
+    return response.status === 200 || response.status === 202;
   }
 
   /**
@@ -1575,69 +1819,63 @@ export class REWApiClient {
     if (response.status !== 200 || !response.data) {
       this.handleResponseError(response, `Target response for ${uuid}`);
     }
-    const data = response.data as Record<string, unknown>;
-    const spl = data.magnitude
-      ? decodeREWFloatArray(data.magnitude as string)
-      : [];
-    const frequencies = data.frequencies
-      ? decodeREWFloatArray(data.frequencies as string)
-      : [];
-    return { frequencies_hz: frequencies, spl_db: spl, phase_degrees: [] };
+    const decoded = this.decodeFrequencyResponse(response.data as FrequencyResponse);
+    return {
+      frequencies_hz: decoded.frequencies_hz,
+      spl_db: decoded.magnitude,
+      phase_degrees: decoded.phase_degrees,
+    };
   }
 
   /**
-   * Get predicted response after EQ for a measurement
+   * Get the predicted frequency response of the equalised measurement.
+   *
+   * The former `/eq/predicted-response` path was removed; the equalised response
+   * is now served by `GET /measurements/{id}/eq/frequency-response`.
    */
   async getEQPredictedResponse(uuid: string): Promise<FrequencyResponseData> {
-    const response = await this.request('GET', `/measurements/${uuid}/eq/predicted-response`);
+    const response = await this.request('GET', `/measurements/${uuid}/eq/frequency-response`);
     if (response.status !== 200 || !response.data) {
       this.handleResponseError(response, `EQ predicted response for ${uuid}`);
     }
-    const data = response.data as Record<string, unknown>;
-    const spl = data.magnitude
-      ? decodeREWFloatArray(data.magnitude as string)
-      : [];
-    const frequencies = data.frequencies
-      ? decodeREWFloatArray(data.frequencies as string)
-      : [];
-    return { frequencies_hz: frequencies, spl_db: spl, phase_degrees: [] };
+    const decoded = this.decodeFrequencyResponse(response.data as FrequencyResponse);
+    return {
+      frequencies_hz: decoded.frequencies_hz,
+      spl_db: decoded.magnitude,
+      phase_degrees: decoded.phase_degrees,
+    };
   }
 
   /**
-   * Get individual filter response curves for a measurement
+   * Generate a new measurement containing the combined EQ filter response.
+   *
+   * There is no direct GET for the filter response; REW produces it via the EQ
+   * command "Generate filters measurement", which appends a new measurement to
+   * the list. Its frequency response can then be read with `getFrequencyResponse`
+   * (or `getEQPredictedResponse`) on the newly created measurement.
    */
-  async getEQFilterResponse(uuid: string): Promise<FrequencyResponseData> {
-    const response = await this.request('GET', `/measurements/${uuid}/eq/filter-response`);
-    if (response.status !== 200 || !response.data) {
-      this.handleResponseError(response, `EQ filter response for ${uuid}`);
-    }
-    const data = response.data as Record<string, unknown>;
-    const spl = data.magnitude
-      ? decodeREWFloatArray(data.magnitude as string)
-      : [];
-    const frequencies = data.frequencies
-      ? decodeREWFloatArray(data.frequencies as string)
-      : [];
-    return { frequencies_hz: frequencies, spl_db: spl, phase_degrees: [] };
+  async generateFiltersMeasurement(uuid: string): Promise<{ success: boolean; message?: string }> {
+    const response = await this.request('POST', `/measurements/${uuid}/eq/command`, {
+      command: 'Generate filters measurement',
+    });
+    const data = response.data as { message?: string } | undefined;
+    return {
+      success: response.status === 200 || response.status === 202,
+      message: data?.message,
+    };
   }
 
   /**
-   * Auto-generate EQ filters to match target curve
+   * Auto-generate EQ filters to match the target curve.
+   *
+   * The former `/eq/match-target` path was removed; matching is now the EQ command
+   * "Match target" routed through `POST /measurements/{id}/eq/command`.
    */
   async matchTarget(uuid: string): Promise<{ success: boolean }> {
-    const response = await this.request('POST', `/measurements/${uuid}/eq/match-target`);
+    const response = await this.request('POST', `/measurements/${uuid}/eq/command`, {
+      command: 'Match target',
+    });
     return { success: response.status === 200 || response.status === 202 };
-  }
-
-  /**
-   * Get groups a measurement belongs to
-   */
-  async getMeasurementGroups(uuid: string): Promise<unknown[]> {
-    const response = await this.request('GET', `/measurements/${uuid}/groups`);
-    if (response.status !== 200) {
-      return [];
-    }
-    return Array.isArray(response.data) ? response.data : [];
   }
 
   // ============================================================
@@ -1663,14 +1901,15 @@ export class REWApiClient {
     if (response.status !== 200) {
       this.handleResponseError(response, 'Java input channel');
     }
-    return response.data as number;
+    return (response.data as InputChannel).channel ?? 0;
   }
 
   /**
    * Set Java input channel
+   * API expects: { channel: <number> }
    */
   async setJavaInputChannel(channel: number): Promise<boolean> {
-    const response = await this.request('POST', '/audio/java/input-channel', channel);
+    const response = await this.request('POST', '/audio/java/input-channel', { channel });
     return response.status === 200 || response.status === 202;
   }
 
@@ -1682,14 +1921,15 @@ export class REWApiClient {
     if (response.status !== 200) {
       this.handleResponseError(response, 'Java reference input channel');
     }
-    return response.data as number;
+    return (response.data as InputChannel).channel ?? 0;
   }
 
   /**
    * Set reference input channel
+   * API expects: { channel: <number> }
    */
   async setJavaRefInputChannel(channel: number): Promise<boolean> {
-    const response = await this.request('POST', '/audio/java/ref-input-channel', channel);
+    const response = await this.request('POST', '/audio/java/ref-input-channel', { channel });
     return response.status === 200 || response.status === 202;
   }
 
@@ -1701,7 +1941,7 @@ export class REWApiClient {
     if (response.status !== 200) {
       this.handleResponseError(response, 'Java last input channel');
     }
-    return response.data as number;
+    return (response.data as InputChannel).channel ?? 0;
   }
 
   /**
@@ -1731,15 +1971,16 @@ export class REWApiClient {
     if (response.status !== 200) {
       return false;
     }
-    return response.data as boolean;
+    return (response.data as Enable).enable ?? false;
   }
 
   /**
    * Set stereo-only mode
+   * API expects: { enable: <boolean> }
    */
   async setJavaStereoOnly(stereoOnly: boolean): Promise<boolean> {
-    const response = await this.request('POST', '/audio/java/stereo-only', stereoOnly);
-    return response.status === 200;
+    const response = await this.request('POST', '/audio/java/stereo-only', { enable: stereoOnly });
+    return response.status === 200 || response.status === 202;
   }
 
   // ============================================================
@@ -1841,17 +2082,6 @@ export class REWApiClient {
     return response.status === 200;
   }
 
-  /**
-   * Get available sweep length options
-   */
-  async getSweepLengths(): Promise<number[]> {
-    const response = await this.request('GET', '/measure/sweep/lengths');
-    if (response.status !== 200) {
-      return [];
-    }
-    return Array.isArray(response.data) ? response.data : [];
-  }
-
   // ============================================================
   // GENERATOR EXPANSION (P1)
   // ============================================================
@@ -1899,10 +2129,31 @@ export class REWApiClient {
   // ============================================================
 
   /**
-   * List available SPL meters
+   * List available SPL meters.
+   *
+   * The REW API has no meter-enumeration endpoint (the old /spl-meter/meters
+   * path returns 404); meters are addressed by id. Meter ids are contiguous
+   * from 1, so this probes /spl-meter/{id}/configuration upward until one is
+   * missing and returns the ids that exist.
    */
-  async getSPLMeters(): Promise<unknown[]> {
-    const response = await this.request('GET', '/spl-meter/meters');
+  async getSPLMeters(): Promise<Array<{ id: number }>> {
+    const meters: Array<{ id: number }> = [];
+    const maxProbe = 8;
+    for (let id = 1; id <= maxProbe; id++) {
+      const response = await this.request('GET', `/spl-meter/${id}/configuration`);
+      if (response.status !== 200) {
+        break;
+      }
+      meters.push({ id });
+    }
+    return meters;
+  }
+
+  /**
+   * Get available frequency weightings (A/C/Z). Global in the current API.
+   */
+  async getSPLMeterWeightings(): Promise<string[]> {
+    const response = await this.request('GET', '/spl-meter/weightings');
     if (response.status !== 200) {
       return [];
     }
@@ -1910,21 +2161,10 @@ export class REWApiClient {
   }
 
   /**
-   * Get available frequency weightings for a meter
+   * Get available time-weighting filters (Fast/Slow). Global in the current API.
    */
-  async getSPLMeterWeightings(meterId: number): Promise<string[]> {
-    const response = await this.request('GET', `/spl-meter/${meterId}/weightings`);
-    if (response.status !== 200) {
-      return [];
-    }
-    return Array.isArray(response.data) ? response.data : [];
-  }
-
-  /**
-   * Get available time filters for a meter
-   */
-  async getSPLMeterFilters(meterId: number): Promise<string[]> {
-    const response = await this.request('GET', `/spl-meter/${meterId}/filters`);
+  async getSPLMeterFilters(): Promise<string[]> {
+    const response = await this.request('GET', '/spl-meter/filters');
     if (response.status !== 200) {
       return [];
     }
@@ -2037,22 +2277,116 @@ export class REWApiClient {
   }
 
   /**
-   * Get default EQ settings
+   * Get the default equaliser (manufacturer + model).
    */
-  async getEQDefaults(): Promise<unknown> {
-    const response = await this.request('GET', '/eq/defaults');
-    if (response.status !== 200) {
-      this.handleResponseError(response, 'EQ defaults');
-    }
-    return response.data;
+  async getDefaultEqualiser(): Promise<EqualiserEntry | null> {
+    const response = await this.request('GET', '/eq/default-equaliser');
+    return response.status === 200 ? (response.data as EqualiserEntry) : null;
   }
 
   /**
-   * Set default EQ settings
+   * Set the default equaliser (manufacturer + model).
    */
-  async setEQDefaults(defaults: unknown): Promise<boolean> {
-    const response = await this.request('POST', '/eq/defaults', defaults);
+  async setDefaultEqualiser(entry: EqualiserEntry): Promise<boolean> {
+    const response = await this.request('POST', '/eq/default-equaliser', entry);
     return response.status === 200;
+  }
+
+  /**
+   * Get the default target settings (shape, bass management, crossovers).
+   */
+  async getDefaultTargetSettings(): Promise<EqTargetSettings | null> {
+    const response = await this.request('GET', '/eq/default-target-settings');
+    return response.status === 200 ? (response.data as EqTargetSettings) : null;
+  }
+
+  /**
+   * Set the default target settings.
+   */
+  async setDefaultTargetSettings(settings: EqTargetSettings): Promise<boolean> {
+    const response = await this.request('POST', '/eq/default-target-settings', settings);
+    return response.status === 200;
+  }
+
+  /**
+   * Get the default target level (dB SPL).
+   */
+  async getDefaultTargetLevel(): Promise<number | null> {
+    const response = await this.request('GET', '/eq/default-target-level');
+    return response.status === 200 && typeof response.data === 'number'
+      ? response.data
+      : null;
+  }
+
+  /**
+   * Set the default target level (dB SPL).
+   */
+  async setDefaultTargetLevel(level: number): Promise<boolean> {
+    const response = await this.request('POST', '/eq/default-target-level', level);
+    return response.status === 200;
+  }
+
+  /**
+   * Get the default room curve settings.
+   */
+  async getDefaultRoomCurveSettings(): Promise<EqRoomCurveSettings | null> {
+    const response = await this.request('GET', '/eq/default-room-curve-settings');
+    return response.status === 200 ? (response.data as EqRoomCurveSettings) : null;
+  }
+
+  /**
+   * Set the default room curve settings.
+   */
+  async setDefaultRoomCurveSettings(settings: EqRoomCurveSettings): Promise<boolean> {
+    const response = await this.request('POST', '/eq/default-room-curve-settings', settings);
+    return response.status === 200;
+  }
+
+  /**
+   * Get all default EQ settings as a composite view.
+   *
+   * REW API 0.9.5 removed the single GET /eq/defaults blob and split it into
+   * four typed endpoints; this aggregates them. Any endpoint that fails leaves
+   * its key undefined rather than failing the whole call.
+   */
+  async getEQDefaults(): Promise<EQDefaults> {
+    const [equaliser, targetSettings, targetLevel, roomCurveSettings] = await Promise.all([
+      this.getDefaultEqualiser(),
+      this.getDefaultTargetSettings(),
+      this.getDefaultTargetLevel(),
+      this.getDefaultRoomCurveSettings()
+    ]);
+
+    const defaults: EQDefaults = {};
+    if (equaliser) defaults.equaliser = equaliser;
+    if (targetSettings) defaults.targetSettings = targetSettings;
+    if (targetLevel !== null) defaults.targetLevel = targetLevel;
+    if (roomCurveSettings) defaults.roomCurveSettings = roomCurveSettings;
+    return defaults;
+  }
+
+  /**
+   * Set default EQ settings.
+   *
+   * Dispatches each provided key to its dedicated endpoint (POST /eq/default-*).
+   * Returns true only if every attempted update succeeded. Keys left undefined
+   * are not touched; passing an empty object is a no-op that returns false.
+   */
+  async setEQDefaults(defaults: EQDefaults): Promise<boolean> {
+    const results: boolean[] = [];
+    if (defaults.equaliser !== undefined) {
+      results.push(await this.setDefaultEqualiser(defaults.equaliser));
+    }
+    if (defaults.targetSettings !== undefined) {
+      results.push(await this.setDefaultTargetSettings(defaults.targetSettings));
+    }
+    if (defaults.targetLevel !== undefined) {
+      results.push(await this.setDefaultTargetLevel(defaults.targetLevel));
+    }
+    if (defaults.roomCurveSettings !== undefined) {
+      results.push(await this.setDefaultRoomCurveSettings(defaults.roomCurveSettings));
+    }
+    return results.length > 0 && results.every(Boolean);
   }
 
   /**
@@ -2090,7 +2424,11 @@ export class REWApiClient {
   }
 
   /**
-   * Create a new measurement group
+   * Create a new measurement group.
+   *
+   * Body is a partial GroupInfo ({name}); REW assigns the uuid. Although the
+   * spec declares the response as APIResponse, live REW (0.9.5) returns the
+   * created GroupInfo including the assigned uuid, which is read back here.
    */
   async createGroup(name: string): Promise<{ id: string }> {
     const response = await this.request('POST', '/groups', { name });
@@ -2148,11 +2486,36 @@ export class REWApiClient {
   }
 
   /**
-   * Remove a measurement from a group
+   * Remove a measurement from a group, leaving the group and its other members
+   * intact.
+   *
+   * The REW API (0.9.5) has no direct "remove from group" endpoint. Group
+   * membership is singular and deleting a group ungroups its members, so this
+   * moves the measurement into a throwaway group and deletes that group, which
+   * leaves the measurement ungrouped. Verified live against REW 5.40 Beta 130.
+   *
+   * The measurement must currently be in `groupId`; otherwise this is a no-op
+   * that returns false (nothing was removed from the requested group).
    */
   async removeMeasurementFromGroup(groupId: string, measurementUuid: string): Promise<boolean> {
-    const response = await this.request('DELETE', `/groups/${groupId}/measurements/${measurementUuid}`);
-    return response.status === 200 || response.status === 204;
+    // Guard: only act if the measurement is actually in the requested group.
+    const members = await this.getGroupMeasurements(groupId);
+    const isMember = members.some(
+      (m) => (m as { uuid?: string }).uuid === measurementUuid
+    );
+    if (!isMember) {
+      return false;
+    }
+
+    // Move the measurement into a throwaway group (removes it from groupId),
+    // then delete that group to leave the measurement ungrouped.
+    const temp = await this.createGroup(`__rew-mcp-ungroup-${measurementUuid}__`);
+    if (!temp.id) {
+      return false;
+    }
+    const moved = await this.addMeasurementToGroup(temp.id, measurementUuid);
+    const deleted = await this.deleteGroup(temp.id);
+    return moved && deleted;
   }
 
   // ============================================================
@@ -2212,14 +2575,81 @@ export class REWApiClient {
   }
 
   /**
-   * Get captured RTA snapshots
+   * Decode an RTA FrequencyResponse payload (magnitude/phase are base64 float32
+   * arrays; frequencies derive from startFreq with either ppo (log) or freqStep
+   * (linear FFT bins)). Shared by captured-data and captured-peak-data.
    */
-  async getRTACapturedData(): Promise<unknown> {
-    const response = await this.request('GET', '/rta/captured-data');
-    if (response.status !== 200) {
+  private decodeRTAFrequencyResponse(data: Record<string, unknown>): RTACapturedData {
+    // REW signals an empty snapshot with a bare message and no magnitude.
+    if (typeof data.message === 'string' && data.magnitude === undefined) {
+      return { message: data.message, frequencies_hz: [], magnitude_db: [] };
+    }
+
+    const magnitude = data.magnitude
+      ? decodeREWFloatArray(data.magnitude as string)
+      : [];
+    const phase = data.phase
+      ? decodeREWFloatArray(data.phase as string)
+      : undefined;
+
+    const startFreq = data.startFreq as number | undefined;
+    const ppo = data.ppo as number | undefined;
+    const freqStep = data.freqStep as number | undefined;
+
+    let frequencies: number[] = [];
+    if (startFreq !== undefined && magnitude.length > 0) {
+      if (ppo !== undefined && ppo > 0) {
+        const logRatio = Math.log(2) / ppo;
+        frequencies = magnitude.map((_, i) => startFreq * Math.exp(i * logRatio));
+      } else if (freqStep !== undefined && freqStep > 0) {
+        frequencies = magnitude.map((_, i) => startFreq + i * freqStep);
+      }
+    }
+
+    const result: RTACapturedData = {
+      unit: data.unit as string | undefined,
+      smoothing: data.smoothing as string | undefined,
+      frequencies_hz: frequencies,
+      magnitude_db: magnitude,
+      nanotime: data.nanotime as number | undefined,
+      total_samples_processed: data.totalSamplesProcessed as number | undefined
+    };
+    if (phase) result.phase_degrees = phase;
+    return result;
+  }
+
+  /**
+   * Get the current captured RTA snapshot as decoded frequency/magnitude arrays.
+   *
+   * @param options.unit  Optional magnitude unit (spec query `unit`)
+   * @param options.index Optional capture index (spec query `index`)
+   */
+  async getRTACapturedData(options?: { unit?: string; index?: string }): Promise<RTACapturedData> {
+    const response = await this.request('GET', this.rtaCapturePath('/rta/captured-data', options));
+    if (response.status !== 200 || !response.data) {
       this.handleResponseError(response, 'RTA captured data');
     }
-    return response.data;
+    return this.decodeRTAFrequencyResponse(response.data as Record<string, unknown>);
+  }
+
+  /**
+   * Get the captured RTA peak-hold snapshot as decoded frequency/magnitude arrays.
+   */
+  async getRTACapturedPeakData(options?: { unit?: string; index?: string }): Promise<RTACapturedData> {
+    const response = await this.request('GET', this.rtaCapturePath('/rta/captured-peak-data', options));
+    if (response.status !== 200 || !response.data) {
+      this.handleResponseError(response, 'RTA captured peak data');
+    }
+    return this.decodeRTAFrequencyResponse(response.data as Record<string, unknown>);
+  }
+
+  /** Build an RTA capture path with optional unit/index query parameters. */
+  private rtaCapturePath(base: string, options?: { unit?: string; index?: string }): string {
+    const params = new URLSearchParams();
+    if (options?.unit) params.set('unit', options.unit);
+    if (options?.index) params.set('index', options.index);
+    const qs = params.toString();
+    return qs ? `${base}?${qs}` : base;
   }
 
   /**

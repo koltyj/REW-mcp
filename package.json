@@ -41,7 +41,8 @@
     "lint": "eslint src --no-warn-ignored",
     "lint:fix": "eslint src --fix --no-warn-ignored",
     "prepare": "npm run build",
-    "prepublishOnly": "npm run build && npm run lint && npm test"
+    "prepublishOnly": "npm run build && npm run lint && npm test",
+    "gen:api": "node scripts/generate-api-types.mjs"
   },
   "keywords": [
     "mcp",
@@ -91,6 +92,7 @@
     "eslint": "^10.0.3",
     "globals": "^17.4.0",
     "msw": "^2.12.7",
+    "swagger-typescript-api": "^13.12.6",
     "typescript": "^5.8.2",
     "typescript-eslint": "^8.57.0",
     "vitest": "^2.1.8"

@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { getActiveApiClient } from './api-connect.js';
 import { REWApiError } from '../api/rew-api-error.js';
 import type { ToolResponse } from '../types/index.js';
+import type { EQDefaults } from '../api/schemas.js';
 
 // Input schema
 export const ApiEQInputSchema = z.object({
@@ -19,7 +20,11 @@ export const ApiEQInputSchema = z.object({
   ]).describe('EQ management action to perform'),
 
   defaults: z.unknown().optional()
-    .describe('EQ defaults configuration (for set_defaults)'),
+    .describe('EQ defaults configuration (for set_defaults). Composite object; provide only the keys to change: ' +
+      '{ equaliser: {manufacturer, model}, targetSettings: {shape, bassManagementSlopedBPerOctave, bassManagementCutoffHz, ' +
+      'lowFreqSlopedBPerOctave, lowFreqCutoffHz, lowPassCrossoverType, highPassCrossoverType, lowPassCutoffHz, highPassCutoffHz}, ' +
+      'targetLevel: number (dB SPL), roomCurveSettings: {addRoomCurve, lowFreqRiseStartHz, lowFreqRiseEndHz, ' +
+      'lowFreqRiseSlopedBPerOctave, highFreqFallStartHz, highFreqFallSlopedBPerOctave} }'),
 
   house_curve: z.unknown().optional()
     .describe('House curve configuration (for set_house_curve)')
@@ -91,7 +96,7 @@ export async function executeApiEQ(input: ApiEQInput): Promise<ToolResponse<ApiE
           data: {
             action: 'get_defaults',
             success: true,
-            message: 'EQ defaults retrieved',
+            message: 'EQ defaults retrieved (equaliser, target settings, target level, room curve settings)',
             defaults
           }
         };
@@ -107,14 +112,16 @@ export async function executeApiEQ(input: ApiEQInput): Promise<ToolResponse<ApiE
           };
         }
 
-        const success = await client.setEQDefaults(validated.defaults);
+        const success = await client.setEQDefaults(validated.defaults as EQDefaults);
 
         return {
           status: 'success',
           data: {
             action: 'set_defaults',
             success,
-            message: success ? 'EQ defaults updated' : 'Failed to update EQ defaults'
+            message: success
+              ? 'EQ defaults updated'
+              : 'Failed to update EQ defaults (provide at least one of: equaliser, targetSettings, targetLevel, roomCurveSettings)'
           }
         };
       }

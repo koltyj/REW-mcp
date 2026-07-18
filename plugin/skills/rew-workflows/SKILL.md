@@ -190,7 +190,18 @@ Access resources to maintain context across tool calls without re-running analys
 - Connection refused: REW is not running or API is not enabled. Direct the user to enable the API in REW Preferences or launch with the `-api` flag.
 - Timeout: REW may be busy processing. Wait and retry once. If persistent, check if REW is frozen.
 - Level clipping: Reduce mic gain or generator level before retrying. Never proceed with clipped input.
-- Measurement fails with 403: REW Pro license required. Cannot be worked around for automated sweeps.
+- Measurement requires REW Pro (no licence): API-triggered measurements (`sweep`, `spl`, session/workflow `measure`) return `pro_license_required: true` (REW responds HTTP 401, "A Pro upgrade license is required for this action"). See the manual-measurement fallback below -- this is recoverable, not a dead end.
 - Session not found: Sessions are in-memory only. If the server restarted, create a new session.
+
+### Manual-Measurement Fallback (no REW Pro licence)
+
+Without a Pro licence REW does not allow API-triggered measurements. When a measure action returns `pro_license_required: true`, do NOT stop -- switch to a human-in-the-loop flow:
+
+1. Relay the returned guidance to the user: they take the measurement themselves in REW's Measure dialog.
+2. Tell them exactly which settings to use -- level (dBFS), sweep start/end frequency, and sweep length -- taken from the tool's message (which reflects the current REW configuration) or the settings you intended.
+3. Wait. The user runs the sweep manually and confirms when the new measurement appears in REW.
+4. Resume: call `rew_api_list_measurements` (or `rew_api_get_measurement`) to pick up the new measurement by UUID, then continue the workflow (analysis, comparison, next channel) exactly as if the API had produced it.
+
+Treat this as the normal path for non-Pro users: the assistant orchestrates and interprets; the user only performs the physical measurement. Pause for confirmation before each manual measurement, just as you would before playing audio or making a physical change.
 
 For detailed tool chaining patterns, parameter examples, and error recovery sequences, see `references/tool-chaining.md`.

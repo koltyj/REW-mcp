@@ -11,6 +11,7 @@ import { getActiveApiClient } from './api-connect.js';
 import { REWApiError } from '../api/rew-api-error.js';
 import type { ToolResponse } from '../types/index.js';
 import { tuiEventBus } from '../events/index.js';
+import { manualMeasureGuidance } from './measure-fallback.js';
 import {
   createSession,
   getSession,
@@ -195,13 +196,14 @@ export async function executeApiMeasurementSession(
         // Trigger measurement
         const measureResult = await client.executeMeasureCommand('Measure');
 
-        // Handle 403 status: Pro license required
-        if (measureResult.status === 403) {
+        // Without a Pro licence REW rejects API-triggered measurements (HTTP 401).
+        // Guide the user to measure this position manually and continue.
+        if (measureResult.proLicenseRequired) {
           return {
             status: 'error',
             error_type: 'license_error',
-            message: 'REW Pro license required for automated measurements',
-            suggestion: 'Upgrade to REW Pro: https://www.roomeqwizard.com/wizardpurchase.html'
+            message: manualMeasureGuidance(),
+            suggestion: 'Measure this position manually in REW, then tell the assistant to continue. (REW Pro removes this manual step: https://www.roomeqwizard.com/wizardpurchase.html)'
           };
         }
 

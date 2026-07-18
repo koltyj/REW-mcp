@@ -230,6 +230,8 @@ export async function executeApiGroups(input: ApiGroupsInput): Promise<ToolRespo
           };
         }
 
+        // REW has no direct remove-from-group endpoint; the client emulates it by
+        // moving the measurement into a throwaway group and deleting that group.
         const success = await client.removeMeasurementFromGroup(validated.group_id, validated.measurement_uuid);
 
         return {
@@ -238,8 +240,8 @@ export async function executeApiGroups(input: ApiGroupsInput): Promise<ToolRespo
             action: 'remove_measurement',
             success,
             message: success
-              ? 'Measurement removed from group'
-              : 'Failed to remove measurement from group'
+              ? 'Measurement removed from group (now ungrouped)'
+              : 'Measurement was not in the specified group, or removal failed'
           }
         };
       }

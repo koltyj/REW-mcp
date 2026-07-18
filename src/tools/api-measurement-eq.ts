@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { getActiveApiClient } from './api-connect.js';
 import { REWApiError } from '../api/rew-api-error.js';
 import type { ToolResponse } from '../types/index.js';
+import type { FilterSetting } from '../api/generated/rew-api.js';
 
 // Input schema
 export const ApiMeasurementEQInputSchema = z.object({
@@ -129,7 +130,7 @@ export async function executeApiMeasurementEQ(input: ApiMeasurementEQInput): Pro
           };
         }
 
-        const success = await client.setMeasurementFilters(uuid, validated.filters);
+        const success = await client.setMeasurementFilters(uuid, validated.filters as FilterSetting[]);
 
         return {
           status: 'success',
@@ -196,14 +197,19 @@ export async function executeApiMeasurementEQ(input: ApiMeasurementEQInput): Pro
       }
 
       case 'filter_response': {
-        const response = await client.getEQFilterResponse(uuid);
+        // No direct endpoint exists: REW generates a new measurement holding the
+        // combined filter response. Read that measurement's frequency response
+        // afterwards (e.g. via rew_api_measurement frequency-response).
+        const response = await client.generateFiltersMeasurement(uuid);
 
         return {
           status: 'success',
           data: {
             action: 'filter_response',
-            success: true,
-            message: 'EQ filter response retrieved',
+            success: response.success,
+            message: response.success
+              ? 'Generated a new measurement with the combined filter response; read its frequency response to retrieve the curve'
+              : 'Failed to generate filter response measurement',
             measurement_uuid: uuid,
             response_data: response
           }

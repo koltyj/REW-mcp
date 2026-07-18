@@ -34,7 +34,9 @@ export type REWApiResponse = z.infer<typeof REWApiResponseSchema>;
 // Measurement info from list endpoint
 export const MeasurementInfoSchema = z.object({
   uuid: z.string(),
-  name: z.string(),
+  // REW's /measurements endpoint labels measurements with `title`, not `name`,
+  // so `name` must be optional for real REW responses to parse.
+  name: z.string().optional(),
   index: z.number().optional(),
   type: z.string().optional(),
   has_ir: z.boolean().optional(),
@@ -63,6 +65,53 @@ export const SweepConfigSchema = z.object({
 
 export type SweepConfig = z.infer<typeof SweepConfigSchema>;
 
+// Sweep configuration as exposed by REW API 0.9.5
+// (GET/POST /measure/sweep/configuration → MeasSweepConfiguration).
+// Note: `length` is a string enum (e.g. "128k", "1M") from
+// /measure/sweep/configuration/sweep-lengths, not a sample count.
+export interface MeasSweepConfiguration {
+  startFrequency?: number;
+  endFrequency?: number;
+  length?: string;
+  fillSilenceWithDither?: boolean;
+}
+
+// /measure/level → Value { value, unit }
+export interface MeasureValue {
+  value?: number;
+  unit?: string;
+}
+
+// /measure/naming → MeasurementNaming
+export interface MeasurementNaming {
+  title?: string;
+  namingOption?: string;
+  nextNumber?: number;
+  numberIncrement?: number;
+  dateTimeFormat?: string;
+  prefixMeasNameWithOutput?: boolean;
+  appendLevelToMeasName?: boolean;
+}
+
+// Result of executeMeasureCommand; proLicenseRequired flags the no-Pro 401.
+export interface MeasureCommandResult {
+  success: boolean;
+  status: number;
+  message?: string;
+  data?: unknown;
+  proLicenseRequired?: boolean;
+}
+
+/**
+ * Generic result of a command execution endpoint (`.../command`). The `data`
+ * payload varies by command, so it is intentionally left as `unknown`.
+ */
+export interface CommandExecutionResult {
+  success: boolean;
+  status: number;
+  data?: unknown;
+}
+
 // Measure level schema
 export const MeasureLevelSchema = z.object({
   level: z.number().optional(),
@@ -90,6 +139,102 @@ export interface InputLevels {
   time_span_seconds: number;
 }
 
+// EQ default settings — REW API 0.9.5 replaced the single /eq/defaults blob
+// with four typed endpoints (default-equaliser, default-target-settings,
+// default-target-level, default-room-curve-settings).
+export interface EqualiserEntry {
+  manufacturer: string;
+  model: string;
+}
+
+export interface EqTargetSettings {
+  shape?: string;
+  bassManagementSlopedBPerOctave?: number;
+  bassManagementCutoffHz?: number;
+  lowFreqSlopedBPerOctave?: number;
+  lowFreqCutoffHz?: number;
+  lowPassCrossoverType?: string;
+  highPassCrossoverType?: string;
+  lowPassCutoffHz?: number;
+  highPassCutoffHz?: number;
+}
+
+export interface EqRoomCurveSettings {
+  addRoomCurve?: boolean;
+  lowFreqRiseStartHz?: number;
+  lowFreqRiseEndHz?: number;
+  lowFreqRiseSlopedBPerOctave?: number;
+  highFreqFallStartHz?: number;
+  highFreqFallSlopedBPerOctave?: number;
+}
+
+// Composite view aggregating the four EQ default endpoints.
+export interface EQDefaults {
+  equaliser?: EqualiserEntry;
+  targetSettings?: EqTargetSettings;
+  targetLevel?: number;
+  roomCurveSettings?: EqRoomCurveSettings;
+}
+
+// SPL meter live readout (/spl-meter/{id}/levels → SPLValues).
+export interface SPLValues {
+  meterNumber?: number;
+  splWeighting?: string;
+  leqWeighting?: string;
+  selWeighting?: string;
+  filter?: string;
+  spl?: number;
+  leq?: number;
+  sel?: number;
+  isRollingLeq?: boolean;
+  rollingLeqMinutes?: number;
+  leq1m?: number;
+  leq10m?: number;
+  lcPeak?: number;
+  lzPeak?: number;
+  elapsedTime?: number;
+}
+
+// SPL meter configuration (/spl-meter/{id}/configuration → SPLMeterConfiguration).
+// Note: `filter` is the time weighting (Fast/Slow); the frequency weighting
+// (A/C/Z) is split across splWeighting/leqWeighting/selWeighting.
+export interface SPLMeterConfiguration {
+  showSPL?: boolean;
+  showLeq?: boolean;
+  showSEL?: boolean;
+  splWeighting?: string;
+  leqWeighting?: string;
+  selWeighting?: string;
+  filter?: string;
+  highPassActive?: boolean;
+  rollingLeqActive?: boolean;
+  rollingLeqMinutes?: number;
+}
+
+// Friendly config accepted by the client; convenience aliases are expanded to
+// the real SPLMeterConfiguration fields before posting.
+export interface SPLMeterConfigInput extends SPLMeterConfiguration {
+  /** Sets splWeighting/leqWeighting/selWeighting together (A/C/Z). */
+  weighting?: string;
+  /** 'SPL' | 'Leq' | 'SEL' → showSPL/showLeq/showSEL. */
+  mode?: string;
+}
+
+// Decoded RTA captured data (/rta/captured-data, /rta/captured-peak-data).
+// REW returns a FrequencyResponse whose magnitude/phase are base64 float32
+// arrays; this is the decoded, caller-friendly form. When RTA has no snapshot
+// REW returns `{ message: "There is no data" }`, surfaced via `message`.
+export interface RTACapturedData {
+  message?: string;
+  unit?: string;
+  smoothing?: string;
+  frequencies_hz: number[];
+  magnitude_db: number[];
+  phase_degrees?: number[];
+  nanotime?: number;
+  total_samples_processed?: number;
+}
+
 // REW client type (for workflow functions that accept client parameter)
 // This is a structural type, not validation - client is internal
 export interface REWClientLike {
@@ -108,22 +253,22 @@ export interface REWClientLike {
   setBlockingMode(enabled: boolean): Promise<boolean>;
   getMeasurementCount?(): Promise<number>;
   listMeasurements(): Promise<unknown[]>;
-  getMeasureLevel(): Promise<unknown>;
+  getMeasureLevel(): Promise<MeasureValue>;
   setMeasureLevel(level: number, unit?: string): Promise<boolean>;
-  getSweepConfig(): Promise<unknown>;
-  setSweepConfig(config: unknown): Promise<boolean>;
+  getSweepConfig(): Promise<MeasSweepConfiguration>;
+  setSweepConfig(config: MeasSweepConfiguration): Promise<boolean>;
   setMeasureNotes(notes: string): Promise<boolean>;
   getMeasureCommands(): Promise<string[]>;
-  executeMeasureCommand(command: string, parameters?: string[]): Promise<unknown>;
+  executeMeasureCommand(command: string, parameters?: string[]): Promise<MeasureCommandResult>;
   setGeneratorSignal(signal: string): Promise<boolean>;
   setGeneratorLevel(level: number, unit?: string): Promise<boolean>;
   executeGeneratorCommand(command: string): Promise<boolean>;
-  getSPLMeterLevels(meterId: number): Promise<unknown>;
+  getSPLMeterLevels(meterId: number): Promise<SPLValues>;
   getInputLevelCommands(): Promise<string[]>;
   startInputLevelMonitoring(): Promise<boolean>;
   stopInputLevelMonitoring(): Promise<boolean>;
   getInputLevelUnits(): Promise<string[]>;
-  getInputLevels(unit?: string): Promise<InputLevels | null>;
+  getInputLevels(): Promise<InputLevels | null>;
   // P1 additions
   getMeasurementCommands?(uuid: string): Promise<string[]>;
   executeMeasurementCommand?(uuid: string, command: string, parameters?: string[]): Promise<unknown>;
@@ -186,7 +331,8 @@ export const RT60Schema = z.object({
   frequencies_hz: z.array(z.number()),
   t20_seconds: z.array(z.number()),
   t30_seconds: z.array(z.number()),
-  edt_seconds: z.array(z.number())
+  edt_seconds: z.array(z.number()),
+  topt_seconds: z.array(z.number()).optional()
 }).passthrough();
 
 export type RT60Data = z.infer<typeof RT60Schema>;

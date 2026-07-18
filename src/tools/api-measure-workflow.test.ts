@@ -457,7 +457,7 @@ describe('executeApiMeasureWorkflow', () => {
         action: 'check_levels'
       });
 
-      expect(mockClient.setGeneratorSignal).toHaveBeenCalledWith('Pink noise');
+      expect(mockClient.setGeneratorSignal).toHaveBeenCalledWith('pinknoise');
       expect(mockClient.setGeneratorLevel).toHaveBeenCalledWith(-12, 'dBFS');
       expect(mockClient.executeMeasureCommand).toHaveBeenCalledWith('Check levels');
       expect(mockClient.executeGeneratorCommand).toHaveBeenCalledWith('Stop');
@@ -572,7 +572,7 @@ describe('executeApiMeasureWorkflow', () => {
 
       const result = await promise;
 
-      expect(mockClient.setGeneratorSignal).toHaveBeenCalledWith('Pink noise');
+      expect(mockClient.setGeneratorSignal).toHaveBeenCalledWith('pinknoise');
       expect(mockClient.setGeneratorLevel).toHaveBeenCalledWith(-20, 'dBFS');
       expect(mockClient.executeGeneratorCommand).toHaveBeenCalledWith('Start');
       expect(mockClient.getSPLMeterLevels).toHaveBeenCalledWith(1);
@@ -750,8 +750,8 @@ describe('executeApiMeasureWorkflow', () => {
       });
 
       expect(mockClient.setSweepConfig).toHaveBeenCalledWith({
-        startFreq: 10,
-        endFreq: 24000
+        startFrequency: 10,
+        endFrequency: 24000
       });
     });
 
@@ -783,19 +783,20 @@ describe('executeApiMeasureWorkflow', () => {
       expect(mockClient.setBlockingMode).toHaveBeenCalledWith(true);
     });
 
-    it('should detect Pro license requirement on 403', async () => {
+    it('should return manual-measure guidance when a Pro licence is required', async () => {
       mockClient.listMeasurements.mockResolvedValue([]);
       mockClient.setBlockingMode.mockResolvedValue(true);
-      mockClient.executeMeasureCommand.mockResolvedValue({ success: false, status: 403 });
+      mockClient.executeMeasureCommand.mockResolvedValue({ success: false, status: 401, proLicenseRequired: true });
 
       const result = await executeApiMeasureWorkflow({
         action: 'measure'
       });
 
       expect(result.data?.success).toBe(false);
-      expect(result.data?.message).toContain('REW Pro license');
+      expect(result.data?.message).toContain('manually');
+      expect(result.data?.message).toContain('continue');
       expect(result.data?.measurements?.[0].error).toBe('PRO_LICENSE_REQUIRED');
-      expect(result.data?.warnings).toContain('REW Pro license required for API-triggered measurements');
+      expect(result.data?.warnings?.[0]).toContain('measure manually');
     });
 
     it('should return new measurement UUID on success', async () => {
@@ -933,7 +934,7 @@ describe('executeApiMeasureWorkflow', () => {
       mockClient.setBlockingMode.mockResolvedValue(true);
       mockClient.setMeasureNotes.mockResolvedValue(true);
       mockClient.executeMeasureCommand
-        .mockResolvedValueOnce({ success: false, status: 403 });
+        .mockResolvedValueOnce({ success: false, status: 401, proLicenseRequired: true });
 
       const result = await executeApiMeasureWorkflow({
         action: 'measure_sequence',
@@ -948,7 +949,7 @@ describe('executeApiMeasureWorkflow', () => {
       expect(mockClient.executeMeasureCommand).toHaveBeenCalledTimes(1);
       expect(result.data?.measurements).toHaveLength(1);
       expect(result.data?.measurements?.[0].error).toBe('PRO_LICENSE_REQUIRED');
-      expect(result.data?.warnings).toContain('REW Pro license required');
+      expect(result.data?.warnings?.[0]).toContain('measure this position manually');
     });
 
     it('should return array of MeasurementResult with UUIDs', async () => {

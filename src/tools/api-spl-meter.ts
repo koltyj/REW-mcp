@@ -20,11 +20,11 @@ export const ApiSPLMeterInputSchema = z.object({
   
   config: z.object({
     mode: z.enum(['SPL', 'Leq', 'SEL']).optional()
-      .describe('Display mode'),
+      .describe('Display mode; sets showSPL/showLeq/showSEL'),
     weighting: z.enum(['A', 'C', 'Z']).optional()
-      .describe('Frequency weighting (A=human hearing, C=flat low freq, Z=unweighted)'),
-    filter: z.enum(['Slow', 'Fast', 'Impulse']).optional()
-      .describe('Time weighting filter')
+      .describe('Frequency weighting (A=human hearing, C=flat low freq, Z=unweighted); applied to SPL, Leq and SEL'),
+    filter: z.enum(['Slow', 'Fast']).optional()
+      .describe('Time weighting filter (REW supports Fast and Slow)')
   }).optional()
     .describe('SPL meter configuration')
 });
@@ -144,14 +144,15 @@ export async function executeApiSPLMeter(input: ApiSPLMeterInput): Promise<ToolR
           data: {
             action: 'read',
             success: true,
-            message: `SPL: ${levels.spl.toFixed(1)} dB${levels.weighting}`,
+            message: `SPL: ${(levels.spl ?? 0).toFixed(1)} dB${levels.splWeighting ?? ''}`,
             meter_id: meterId,
             levels: {
-              spl_db: levels.spl,
-              leq_db: levels.leq,
-              sel_db: levels.sel,
-              weighting: levels.weighting,
-              filter: levels.filter
+              spl_db: levels.spl ?? 0,
+              leq_db: levels.leq ?? 0,
+              sel_db: levels.sel ?? 0,
+              weighting: levels.splWeighting ?? '',
+              filter: levels.filter ?? '',
+              elapsed_time_s: levels.elapsedTime
             }
           }
         };

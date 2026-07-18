@@ -54,11 +54,11 @@ describe('executeApiMeasure', () => {
     });
 
     it('should return current measurement status with all config fields', async () => {
-      mockClient.getMeasureLevel.mockResolvedValue({ level: -12, unit: 'dBFS' });
+      mockClient.getMeasureLevel.mockResolvedValue({ value: -12, unit: 'dBFS' });
       mockClient.getSweepConfig.mockResolvedValue({
-        startFreq: 20,
-        endFreq: 20000,
-        length: 131072
+        startFrequency: 20,
+        endFrequency: 20000,
+        length: '128k'
       });
       mockClient.getMeasureCommands.mockResolvedValue(['Measure', 'SPL', 'Cancel']);
 
@@ -76,7 +76,7 @@ describe('executeApiMeasure', () => {
           level_unit: 'dBFS',
           sweep_start_hz: 20,
           sweep_end_hz: 20000,
-          sweep_length: 131072
+          sweep_length: '128k'
         },
         available_commands: ['Measure', 'SPL', 'Cancel']
       });
@@ -143,14 +143,14 @@ describe('executeApiMeasure', () => {
         config: {
           start_freq_hz: 10,
           end_freq_hz: 24000,
-          sweep_length: 262144
+          sweep_length: '256k'
         }
       });
 
       expect(mockClient.setSweepConfig).toHaveBeenCalledWith({
-        startFreq: 10,
-        endFreq: 24000,
-        length: 262144
+        startFrequency: 10,
+        endFrequency: 24000,
+        length: '256k'
       });
       expect(result.status).toBe('success');
       expect(result.data?.message).toContain('Sweep config: set');
@@ -188,8 +188,8 @@ describe('executeApiMeasure', () => {
 
       expect(mockClient.setMeasureLevel).toHaveBeenCalledWith(-15, 'dBFS');
       expect(mockClient.setSweepConfig).toHaveBeenCalledWith({
-        startFreq: 20,
-        endFreq: 20000
+        startFrequency: 20,
+        endFrequency: 20000
       });
       expect(mockClient.setMeasureNotes).toHaveBeenCalledWith('Full config test');
       expect(result.status).toBe('success');
@@ -271,37 +271,33 @@ describe('executeApiMeasure', () => {
       expect(result.data?.message).toContain('completed');
     });
 
-    it('should detect Pro license requirement on 403 status', async () => {
+    it('should return manual-measure guidance when a Pro licence is required', async () => {
       mockClient.executeMeasureCommand.mockResolvedValue({
         success: false,
-        status: 403
+        status: 401,
+        proLicenseRequired: true,
+        message: 'A Pro upgrade license is required for this action'
+      });
+      mockClient.getSweepConfig.mockResolvedValue({
+        startFrequency: 20,
+        endFrequency: 20000,
+        length: '128k'
       });
 
       const result = await executeApiMeasure({
-        action: 'sweep'
+        action: 'sweep',
+        config: { level_db: -12 }
       });
 
       expect(result.status).toBe('success');
       expect(result.data?.success).toBe(false);
-      expect(result.data?.message).toContain('REW Pro license');
       expect(result.data?.pro_license_required).toBe(true);
-    });
-
-    it('should detect Pro license from data containing "pro"', async () => {
-      mockClient.executeMeasureCommand.mockResolvedValue({
-        success: false,
-        status: 500,
-        data: 'REW Pro required for this feature'
-      });
-
-      const result = await executeApiMeasure({
-        action: 'sweep'
-      });
-
-      expect(result.status).toBe('success');
-      expect(result.data?.success).toBe(false);
-      expect(result.data?.message).toContain('REW Pro license');
-      expect(result.data?.pro_license_required).toBe(true);
+      // Actionable fallback: measure manually, then continue.
+      expect(result.data?.message).toContain('manually');
+      expect(result.data?.message).toContain('continue');
+      // Relays the concrete settings for the manual measurement.
+      expect(result.data?.message).toContain('-12 dBFS');
+      expect(result.data?.message).toContain('20000 Hz');
     });
 
     it('should handle sweep failure with generic message', async () => {
@@ -317,7 +313,7 @@ describe('executeApiMeasure', () => {
       expect(result.status).toBe('success');
       expect(result.data?.success).toBe(false);
       expect(result.data?.message).toContain('HTTP 500');
-      expect(result.data?.pro_license_required).toBe(false);
+      expect(result.data?.pro_license_required).toBeFalsy();
     });
   });
 

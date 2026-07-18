@@ -9,8 +9,9 @@ import { z } from 'zod';
 import { getActiveApiClient } from './api-connect.js';
 import { REWApiError } from '../api/rew-api-error.js';
 import type { ToolResponse } from '../types/index.js';
-import { type REWClientLike, type SweepConfig } from '../api/schemas.js';
+import { type REWClientLike, type MeasSweepConfiguration } from '../api/schemas.js';
 import { tuiEventBus } from '../events/index.js';
+import { manualMeasureGuidance } from './measure-fallback.js';
 
 // Input schema for workflow
 export const ApiMeasureWorkflowInputSchema = z.object({
@@ -225,7 +226,6 @@ async function getWorkflowStatus(client: REWClientLike): Promise<ToolResponse<Ap
     client.getInputCalibration()
   ]);
 
-  const levelData = level as { level?: number; value?: number; unit?: string } | undefined;
   const calData = inputCal as { calDataAllInputs?: { calFilePath?: string; dBFSAt94dBSPL?: number } } | null | undefined;
 
   const status: WorkflowStatus = {
@@ -235,7 +235,7 @@ async function getWorkflowStatus(client: REWClientLike): Promise<ToolResponse<Ap
     output_device: outputDevice || undefined,
     sample_rate: sampleRate || undefined,
     blocking_mode: blocking,
-    current_level_dbfs: levelData?.value ?? levelData?.level,
+    current_level_dbfs: level?.value,
     measurement_count: measurements?.length || 0,
     pro_features: false, // Will be detected on first measure attempt
     mic_calibrated: !!(calData?.calDataAllInputs?.calFilePath),
@@ -364,12 +364,12 @@ async function checkLevels(
   options?: ApiMeasureWorkflowInput['measurement']
 ): Promise<ToolResponse<ApiMeasureWorkflowResult>> {
   // Start generator with pink noise for level check
-  await client.setGeneratorSignal('Pink noise');
+  await client.setGeneratorSignal('pinknoise');
   const level = options?.level_dbfs ?? -12;
   await client.setGeneratorLevel(level, 'dBFS');
   
   // Run "Check levels" command
-  const result = await client.executeMeasureCommand('Check levels') as { success: boolean; status: number };
+  const result = await client.executeMeasureCommand('Check levels');
 
   const clipping = level > -3;
   const tooLow = level < -30;
@@ -414,7 +414,7 @@ async function calibrateLevel(
   const targetSPL = options?.target_spl_db || 75;
 
   // Start with pink noise
-  await client.setGeneratorSignal('Pink noise');
+  await client.setGeneratorSignal('pinknoise');
   
   // Start at -20 dBFS and adjust
   let currentLevel = -20;
@@ -425,7 +425,7 @@ async function calibrateLevel(
   await new Promise(resolve => setTimeout(resolve, 1000));
 
   // Try to read SPL meter
-  const splLevels = await client.getSPLMeterLevels(1) as { spl?: number; leq?: number; sel?: number } | undefined;
+  const splLevels = await client.getSPLMeterLevels(1);
 
   let recommendation: string;
 
@@ -482,9 +482,9 @@ async function executeMeasurement(
   }
 
   // Set sweep config
-  const sweepConfig: SweepConfig = {};
-  if (options?.start_freq_hz) sweepConfig.startFreq = options.start_freq_hz;
-  if (options?.end_freq_hz) sweepConfig.endFreq = options.end_freq_hz;
+  const sweepConfig: MeasSweepConfiguration = {};
+  if (options?.start_freq_hz) sweepConfig.startFrequency = options.start_freq_hz;
+  if (options?.end_freq_hz) sweepConfig.endFrequency = options.end_freq_hz;
   if (Object.keys(sweepConfig).length > 0) {
     await client.setSweepConfig(sweepConfig);
   }
@@ -499,22 +499,27 @@ async function executeMeasurement(
 
   // Execute measurement
   const startTime = Date.now();
-  const result = await client.executeMeasureCommand('Measure') as { success: boolean; status: number; data?: unknown };
+  const result = await client.executeMeasureCommand('Measure');
   const duration = Date.now() - startTime;
 
-  // Check for Pro license requirement
-  if (!result.success && result.status === 403) {
+  // Without a Pro licence REW rejects API-triggered measurements; guide the user
+  // to measure manually and continue afterwards.
+  if (!result.success && result.proLicenseRequired) {
     return {
       status: 'success',
       data: {
         action: 'measure',
         success: false,
-        message: 'Automated sweep measurements require REW Pro license',
+        message: manualMeasureGuidance({
+          level_dbfs: options?.level_dbfs,
+          start_freq_hz: options?.start_freq_hz,
+          end_freq_hz: options?.end_freq_hz
+        }),
         measurements: [{
           success: false,
           error: 'PRO_LICENSE_REQUIRED'
         }],
-        warnings: ['REW Pro license required for API-triggered measurements']
+        warnings: ['REW Pro license required for API-triggered measurements; measure manually in REW and continue']
       }
     };
   }
@@ -611,12 +616,12 @@ async function executeMeasurementSequence(
 
     // Execute
     const startTime = Date.now();
-    const result = await client.executeMeasureCommand('Measure') as { success: boolean; status: number };
+    const result = await client.executeMeasureCommand('Measure');
     const duration = Date.now() - startTime;
 
     if (!result.success) {
-      if (result.status === 403) {
-        warnings.push('REW Pro license required');
+      if (result.proLicenseRequired) {
+        warnings.push('REW Pro license required for API-triggered measurements; measure this position manually in REW and continue');
         results.push({
           success: false,
           name: meas.name,

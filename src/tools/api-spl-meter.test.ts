@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { executeApiSPLMeter } from './api-spl-meter.js';
 import { REWApiError } from '../api/rew-api-error.js';
 import { z } from 'zod';
+import type { SPLValues, SPLMeterConfigInput } from '../api/schemas.js';
 
 // Mock getActiveApiClient
 vi.mock('./api-connect.js', () => ({
@@ -20,9 +21,9 @@ const mockGetActiveApiClient = vi.mocked(getActiveApiClient);
 describe('executeApiSPLMeter', () => {
   // Mock REW client
   const mockClient = {
-    setSPLMeterConfig: vi.fn(),
+    setSPLMeterConfig: vi.fn<(id: number, config: SPLMeterConfigInput) => Promise<boolean>>(),
     executeSPLMeterCommand: vi.fn(),
-    getSPLMeterLevels: vi.fn(),
+    getSPLMeterLevels: vi.fn<(id: number) => Promise<SPLValues>>(),
     getSPLMeterConfig: vi.fn()
   };
 
@@ -212,7 +213,7 @@ describe('executeApiSPLMeter', () => {
         spl: 75.4,
         leq: 74.8,
         sel: 76.2,
-        weighting: 'A',
+        splWeighting: 'A',
         filter: 'Slow'
       });
 
@@ -237,7 +238,7 @@ describe('executeApiSPLMeter', () => {
         spl: 82.1,
         leq: 81.5,
         sel: 83.0,
-        weighting: 'C',
+        splWeighting: 'C',
         filter: 'Fast'
       });
 
@@ -253,8 +254,8 @@ describe('executeApiSPLMeter', () => {
         spl: 90.5,
         leq: 89.8,
         sel: 91.2,
-        weighting: 'Z',
-        filter: 'Impulse'
+        splWeighting: 'Z',
+        filter: 'Slow'
       });
 
       const result = await executeApiSPLMeter({
@@ -269,7 +270,7 @@ describe('executeApiSPLMeter', () => {
         spl: 70.0,
         leq: 69.5,
         sel: 70.5,
-        weighting: 'A',
+        splWeighting: 'A',
         filter: 'Slow'
       });
 

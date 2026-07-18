@@ -61,17 +61,20 @@ Alternatively, launch REW from terminal with the `-api` flag:
 
 Returns connection status:
 - `status` - "connected" or "error"
-- `rew_version` - REW version string
+- `rew_version` - REW application version (e.g. "5.40 Beta 130"), parsed from the `/version` endpoint
+- `api_version` - REW REST API version (e.g. "0.9.5"), parsed from the `/version` endpoint
+- `api_version_supported` - `true` when the reported API version matches the version this client was verified against (major.minor of `0.9.5`)
+- `compatibility_warning` - Present when the API version differs from the verified one; explains that endpoints may have changed and results may be unreliable
 - `measurements_available` - Number of measurements in REW
-- `api_capabilities` - Pro features, blocking mode availability
+- `api_capabilities` - Blocking mode availability (`blocking_mode`, derived from `GET /application/blocking`) and `pro_features`. **Note:** REW API 0.9.5 exposes no endpoint to query the Pro licence, so `pro_features` is always reported as `false`; a Pro-gated operation (e.g. a sweep measurement) fails at call time if the licence is missing.
 - `diagnostics` - Connection diagnostics (see below)
 
 ### Diagnostics Object
 
 When connection fails, the diagnostics object provides detailed troubleshooting info:
 - `server_responding` - Whether any server responded at the URL
-- `openapi_available` - Whether the REW OpenAPI spec was found
-- `api_version` - API version from OpenAPI spec (if available)
+- `openapi_available` - Whether the REW OpenAPI spec (`/doc.json`) was found
+- `api_version` - REST API version from the `/version` endpoint (if available)
 - `tested_url` - The URL that was tested
 
 ## Troubleshooting

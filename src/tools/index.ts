@@ -95,7 +95,7 @@ export function registerTools(server: Server): void {
         {
           name: 'rew_api_connect',
           title: 'Connect to REW API',
-          description: 'Connect to a running REW instance\'s REST API. REW must be launched with -api flag or have API enabled in preferences. Default port is 4735.',
+          description: 'Connect to a running REW instance\'s REST API. REW must be launched with -api flag or have API enabled in preferences. Default port is 4735. Returns the REW application version (rew_version, e.g. "5.40 Beta 130"), the REST API version (api_version, e.g. "0.9.5"), a compatibility flag (api_version_supported) with an optional compatibility_warning when the REW API version differs from the one this client was verified against, the number of available measurements, and capability flags.',
           inputSchema: zodToJsonSchema(ApiConnectInputSchema)
         },
         {
@@ -120,7 +120,7 @@ export function registerTools(server: Server): void {
         {
           name: 'rew_api_measure',
           title: 'Control REW Measurements',
-          description: 'Control REW measurements via API. Actions: status (get config), sweep (trigger measurement), spl (SPL measurement), cancel, configure. Note: Automated sweep measurements require REW Pro license.',
+          description: 'Control REW measurements via API. Actions: status (get config), sweep (trigger measurement), spl (SPL measurement), cancel, configure. status reports level_db (dBFS) and sweep_start_hz/sweep_end_hz plus sweep_length as a REW length string ("64k".."4M"); configure accepts the same. IMPORTANT: API-triggered measurements (sweep, spl) require a REW Pro licence. Without Pro, REW returns HTTP 401 and these actions return pro_license_required:true with a message instructing the user to run the measurement manually in REW\'s Measure dialog and then tell the assistant to continue — relay that guidance and resume once the new measurement exists.',
           inputSchema: zodToJsonSchema(ApiMeasureInputSchema)
         },
         {
@@ -132,13 +132,13 @@ export function registerTools(server: Server): void {
         {
           name: 'rew_api_generator',
           title: 'Control REW Signal Generator',
-          description: 'Control REW signal generator via API. Generate test tones, pink noise, sweeps. Actions: status, start, stop, set_signal, set_level, set_frequency, list_signals.',
+          description: 'Control REW signal generator via API. Generate test tones, pink noise, sweeps. Actions: status, start, stop, set_signal, set_level, set_frequency, list_signals. set_signal expects a valid REW signal name from list_signals (e.g. "pinknoise", "logsweep", "sine") — not a display string like "Pink noise".',
           inputSchema: zodToJsonSchema(ApiGeneratorInputSchema)
         },
         {
           name: 'rew_api_spl_meter',
           title: 'Control REW SPL Meter',
-          description: 'Control REW SPL meter via API for live level monitoring. Supports A/C/Z weighting, Slow/Fast/Impulse response. Actions: start, stop, read, configure.',
+          description: 'Control REW SPL meter via API for live level monitoring. Supports A/C/Z frequency weighting and Fast/Slow time weighting. Actions: start, stop, read, configure, list_meters. read returns spl/leq/sel plus the meter\'s splWeighting and filter; list_meters discovers meters by probing (REW has no meter-list endpoint).',
           inputSchema: zodToJsonSchema(ApiSPLMeterInputSchema)
         },
         {
@@ -192,19 +192,19 @@ export function registerTools(server: Server): void {
         {
           name: 'rew_api_eq',
           title: 'EQ Management',
-          description: 'Manage global EQ defaults and settings via API. Actions: list_equalisers, list_manufacturers, get_defaults, set_defaults, get_house_curve, set_house_curve.',
+          description: 'Manage global EQ defaults and settings via API. Actions: list_equalisers, list_manufacturers, get_defaults, set_defaults, get_house_curve, set_house_curve. get_defaults returns a composite object { equaliser {manufacturer, model}, targetSettings, targetLevel (dB SPL), roomCurveSettings } aggregated from the four REW default-* endpoints; set_defaults accepts the same object and only updates the keys you provide.',
           inputSchema: zodToJsonSchema(ApiEQInputSchema)
         },
         {
           name: 'rew_api_groups',
           title: 'Measurement Groups',
-          description: 'Manage measurement groups via API. Actions: list, create, get, update, delete, list_measurements, add_measurement, remove_measurement.',
+          description: 'Manage measurement groups via API. Actions: list, create, get, update, delete, list_measurements, add_measurement, remove_measurement. add_measurement moves a measurement into a group (membership is singular, so it leaves any previous group). remove_measurement leaves the measurement ungrouped; REW has no direct remove endpoint, so it is emulated by moving the measurement into a throwaway group and deleting that group.',
           inputSchema: zodToJsonSchema(ApiGroupsInputSchema)
         },
         {
           name: 'rew_api_rta',
           title: 'Real-Time Analyzer',
-          description: 'Control REW Real-Time Analyzer via API. Actions: start, stop, capture, reset, configure, read_levels, read_captured, read_distortion.',
+          description: 'Control REW Real-Time Analyzer via API. Actions: start, stop, capture, reset, configure, read_levels, read_captured, read_captured_peak, read_distortion. read_captured/read_captured_peak return decoded arrays { frequencies_hz, magnitude_db, phase_degrees?, unit, smoothing } (base64 float32 decoded); when RTA has no snapshot the response carries a message and empty arrays.',
           inputSchema: zodToJsonSchema(ApiRTAInputSchema)
         }
       ]

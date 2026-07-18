@@ -57,7 +57,7 @@ describe('executeApiAudio', () => {
     });
 
     it('should return complete audio status with all fields populated', async () => {
-      mockClient.getAudioStatus.mockResolvedValue({ enabled: true, ready: true, driver: 'Java' });
+      mockClient.getAudioStatus.mockResolvedValue({ enabled: true, ready: true });
       mockClient.getAudioDriver.mockResolvedValue('CoreAudio');
       mockClient.getSampleRate.mockResolvedValue(48000);
       mockClient.getJavaInputDevice.mockResolvedValue('Built-in Microphone');
@@ -100,8 +100,8 @@ describe('executeApiAudio', () => {
       expect(result.data?.input_calibration).toBeNull();
     });
 
-    it('should prioritize driver from getAudioDriver over status', async () => {
-      mockClient.getAudioStatus.mockResolvedValue({ enabled: true, ready: true, driver: 'Java' });
+    it('should source driver from getAudioDriver', async () => {
+      mockClient.getAudioStatus.mockResolvedValue({ enabled: true, ready: true });
       mockClient.getAudioDriver.mockResolvedValue('CoreAudio');
       mockClient.getSampleRate.mockResolvedValue(48000);
       mockClient.getJavaInputDevice.mockResolvedValue('Built-in Microphone');

@@ -9,7 +9,8 @@ import { z } from 'zod';
 import { getActiveApiClient } from './api-connect.js';
 import { REWApiError } from '../api/rew-api-error.js';
 import type { ToolResponse } from '../types/index.js';
-import { type SweepConfig } from '../api/schemas.js';
+import { type MeasSweepConfiguration } from '../api/schemas.js';
+import { manualMeasureGuidance } from './measure-fallback.js';
 
 // Input schema for measure commands
 export const ApiMeasureInputSchema = z.object({
@@ -24,8 +25,8 @@ export const ApiMeasureInputSchema = z.object({
       .describe('Sweep start frequency in Hz'),
     end_freq_hz: z.number().min(100).max(48000).optional()
       .describe('Sweep end frequency in Hz'),
-    sweep_length: z.number().optional()
-      .describe('Sweep length in samples'),
+    sweep_length: z.string().optional()
+      .describe('Sweep length as a REW length string (e.g. "64k", "128k", "256k", "512k", "1M", "2M", "4M")'),
     notes: z.string().optional()
       .describe('Notes to attach to the measurement'),
     name_prefix: z.string().optional()
@@ -51,7 +52,7 @@ export interface ApiMeasureResult {
     level_unit?: string;
     sweep_start_hz?: number;
     sweep_end_hz?: number;
-    sweep_length?: number;
+    sweep_length?: string;
   };
   available_commands?: string[];
   pro_license_required?: boolean;
@@ -93,10 +94,10 @@ export async function executeApiMeasure(input: ApiMeasureInput): Promise<ToolRes
             success: true,
             message: 'Measurement status retrieved',
             current_config: {
-              level_db: level?.level,
+              level_db: level?.value,
               level_unit: level?.unit,
-              sweep_start_hz: sweepConfig?.startFreq,
-              sweep_end_hz: sweepConfig?.endFreq,
+              sweep_start_hz: sweepConfig?.startFrequency,
+              sweep_end_hz: sweepConfig?.endFrequency,
               sweep_length: sweepConfig?.length
             },
             available_commands: commands
@@ -125,9 +126,9 @@ export async function executeApiMeasure(input: ApiMeasureInput): Promise<ToolRes
 
         // Set sweep config if any freq params provided
         if (config.start_freq_hz !== undefined || config.end_freq_hz !== undefined || config.sweep_length !== undefined) {
-          const sweepConfig: SweepConfig = {};
-          if (config.start_freq_hz !== undefined) sweepConfig.startFreq = config.start_freq_hz;
-          if (config.end_freq_hz !== undefined) sweepConfig.endFreq = config.end_freq_hz;
+          const sweepConfig: MeasSweepConfiguration = {};
+          if (config.start_freq_hz !== undefined) sweepConfig.startFrequency = config.start_freq_hz;
+          if (config.end_freq_hz !== undefined) sweepConfig.endFrequency = config.end_freq_hz;
           if (config.sweep_length !== undefined) sweepConfig.length = config.sweep_length;
 
           const sweepSet = await client.setSweepConfig(sweepConfig);
@@ -165,19 +166,30 @@ export async function executeApiMeasure(input: ApiMeasureInput): Promise<ToolRes
         const result = await client.executeMeasureCommand('Measure');
 
         if (!result.success) {
-          // Check if it's a pro license issue
-          const isPro = result.status === 403 || 
-            (typeof result.data === 'string' && result.data.toLowerCase().includes('pro'));
+          if (result.proLicenseRequired) {
+            const currentSweep = await client.getSweepConfig();
+            return {
+              status: 'success',
+              data: {
+                action: 'sweep',
+                success: false,
+                message: manualMeasureGuidance({
+                  level_dbfs: validated.config?.level_db,
+                  start_freq_hz: validated.config?.start_freq_hz ?? currentSweep?.startFrequency,
+                  end_freq_hz: validated.config?.end_freq_hz ?? currentSweep?.endFrequency,
+                  sweep_length: validated.config?.sweep_length ?? currentSweep?.length
+                }),
+                pro_license_required: true
+              }
+            };
+          }
 
           return {
             status: 'success',
             data: {
               action: 'sweep',
               success: false,
-              message: isPro 
-                ? 'Automated sweep measurements require REW Pro license'
-                : `Measurement command failed: HTTP ${result.status}`,
-              pro_license_required: isPro
+              message: `Measurement command failed: HTTP ${result.status}`
             }
           };
         }
@@ -198,12 +210,24 @@ export async function executeApiMeasure(input: ApiMeasureInput): Promise<ToolRes
         // Trigger SPL measurement
         const result = await client.executeMeasureCommand('SPL');
 
+        if (!result.success && result.proLicenseRequired) {
+          return {
+            status: 'success',
+            data: {
+              action: 'spl',
+              success: false,
+              message: manualMeasureGuidance(),
+              pro_license_required: true
+            }
+          };
+        }
+
         return {
           status: 'success',
           data: {
             action: 'spl',
             success: result.success,
-            message: result.success 
+            message: result.success
               ? 'SPL measurement started'
               : `SPL measurement failed: HTTP ${result.status}`
           }

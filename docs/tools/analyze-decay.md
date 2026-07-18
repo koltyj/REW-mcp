@@ -164,36 +164,82 @@ Analyzes waterfall/spectrogram data to identify frequencies with problematic dec
 
 ## REW Waterfall Generation
 
-> **Reference**: REW can generate waterfall data via API or GUI
-> See: https://www.roomeqwizard.com/help/help_en-GB/html/api.html
+> **Reference**: https://www.roomeqwizard.com/help/help/html/api.html
+> The API help states: *"The generate waterfall and spectrogram commands return
+> the 2D data in a ProcessResult in key '0'."*
 
-### Waterfall Modes (from REW documentation)
+There is **no GET endpoint** for waterfall data. REW computes it on demand via the
+`Generate waterfall` command on `POST /measurements/{id}/command`. The full 2D
+matrix is only returned synchronously when **blocking mode is enabled**; otherwise
+the command replies with an `"…in progress"` acknowledgement and no data.
 
-1. **Fourier mode**: Uses windowed FFT analysis
+`REWApiClient.getWaterfallData()` encapsulates this: it enables blocking mode for
+the call, issues the command, parses the `ProcessResult`, and restores the previous
+blocking state.
+
+### Waterfall Modes
+
+1. **Fourier mode**: windowed FFT analysis
    - Parameters: window type, window width (ms), time range (ms), rise time (ms)
-   
-2. **Burst decay mode**: Analyzes energy decay in frequency bands
-   - Parameters: bandwidth (e.g., "1/3" octave), periods
+2. **Burst decay mode**: energy decay in frequency bands
 
-### REW API Waterfall Generation Example
+### Verified full flow (curl, REW 5.40 Beta / API 0.9.5)
+
+```bash
+# 1) Enable blocking so the command returns the computed matrix synchronously
+curl -s -X POST -H 'Content-Type: application/json' -d 'true' \
+  http://127.0.0.1:4735/application/blocking
+
+# 2) Generate the waterfall (all parameters are required)
+curl -s -X POST -H 'Content-Type: application/json' \
+  -d '{
+        "command": "Generate waterfall",
+        "parameters": {
+          "mode": "Fourier",
+          "slices": 10,
+          "left window type": "Hann",
+          "right window type": "Hann",
+          "window width ms": 300,
+          "time range ms": 300,
+          "rise time ms": 100,
+          "use csd mode": false,
+          "ppo": 48,
+          "smoothing": "None"
+        }
+      }' \
+  http://127.0.0.1:4735/measurements/{id}/command
+
+# 3) Restore the previous blocking state
+curl -s -X POST -H 'Content-Type: application/json' -d 'false' \
+  http://127.0.0.1:4735/application/blocking
+```
+
+Valid window types come from `GET /measurements/spectrogram-window-choices`
+(`Rectangular`, `Hann`, `Hamming`, `Cosine`, `Tukey 0.01/0.25/0.5/0.75`,
+`Blackman`, `Blackman-Harris 4`, `Blackman-Nuttall`, `Blackman-Harris 7`,
+`Flat-Top`, `Gaussian`).
+
+### Response structure
+
+The command response body wraps the `ProcessResult` as a JSON **string** in
+`message`:
 
 ```json
-{
-  "command": "Generate waterfall",
-  "parameters": {
-    "mode": "Fourier",
-    "slices": "101",
-    "left window type": "Hann",
-    "right window type": "Tukey 0.25",
-    "window width ms": "300",
-    "time range ms": "500",
-    "rise time ms": "150",
-    "use csd mode": "false",
-    "ppo": "48",
-    "smoothing": "1/48"
-  }
-}
+{ "message": "{\"processName\":\"Generate waterfall ID 8\",\"message\":\"Completed\",\"results\":{\"0\":{ ... }}}" }
 ```
+
+Parsing `message` yields `results["0"]`, the data grid:
+
+| Key            | Encoding                     | Meaning                                   |
+|----------------|------------------------------|-------------------------------------------|
+| `"0"`..`"N-1"` | base64 float32 (big-endian)  | Magnitudes for each time slice (dB)       |
+| `"Frequencies"`| base64 float32 (big-endian)  | Frequency axis in Hz (log-spaced per ppo) |
+| `"Times"`      | base64 float32 (big-endian)  | Slice times in **seconds**                |
+
+`getWaterfallData()` decodes these into `WaterfallData` (`frequencies_hz`,
+`time_slices_ms` — seconds converted to ms, `magnitude_db` as a `[slice][freq]`
+matrix). Magnitude bins REW leaves undefined (`NaN`, typically the lowest
+frequencies) are floored to `-200` dB so the matrix stays finite.
 
 ## Output Specification
 
@@ -527,5 +573,5 @@ From Genelec GLM documentation:
 
 - RT60 measurement: https://www.roomeqwizard.com/help/help_en-GB/html/graph_rt60.html
 - Waterfall generation: https://www.roomeqwizard.com/help/help_en-GB/html/graph_waterfall.html
-- REW API waterfall: https://www.roomeqwizard.com/help/help_en-GB/html/api.html#waterfall
+- REW API (Generate waterfall command returns the 2D data in a ProcessResult): https://www.roomeqwizard.com/help/help/html/api.html
 - Acoustic treatment: F. Alton Everest, "Master Handbook of Acoustics"

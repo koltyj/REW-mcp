@@ -125,7 +125,7 @@ describe('MCP Server Integration', () => {
     it('should set isError: false when API connection fails gracefully', async () => {
       // Connection failure is handled as successful tool execution with error status in data
       mswServer.use(
-        http.get('http://127.0.0.1:4735/doc.json', () => {
+        http.get('http://127.0.0.1:4735/version', () => {
           return HttpResponse.error();  // Network error
         })
       );
@@ -175,9 +175,12 @@ describe('MCP Server Integration', () => {
     it('should set isError: false when tool succeeds', async () => {
       // Mock successful REW API connection
       mswServer.use(
+        http.get('http://127.0.0.1:4735/version', () => {
+          return HttpResponse.json({ message: '5.30.9 API 0.9.5' });
+        }),
         http.get('http://127.0.0.1:4735/doc.json', () => {
           return HttpResponse.json({
-            info: { version: '5.30.9' },
+            info: { version: '0.9.5' },
             openapi: '3.0.0'
           });
         }),
@@ -345,9 +348,12 @@ describe('MCP Server Integration', () => {
   describe('Complete Tool Flows', () => {
     it('should connect and list measurements successfully', async () => {
       mswServer.use(
+        http.get('http://127.0.0.1:4735/version', () => {
+          return HttpResponse.json({ message: '5.30.9 API 0.9.5' });
+        }),
         http.get('http://127.0.0.1:4735/doc.json', () => {
           return HttpResponse.json({
-            info: { version: '5.30.9' },
+            info: { version: '0.9.5' },
             openapi: '3.0.0'
           });
         }),
@@ -392,8 +398,11 @@ describe('MCP Server Integration', () => {
     it('should handle measurement retrieval error gracefully', async () => {
       // Setup connection first
       mswServer.use(
+        http.get('http://127.0.0.1:4735/version', () => {
+          return HttpResponse.json({ message: '5.30.9 API 0.9.5' });
+        }),
         http.get('http://127.0.0.1:4735/doc.json', () => {
-          return HttpResponse.json({ info: { version: '5.30.9' }, openapi: '3.0.0' });
+          return HttpResponse.json({ info: { version: '0.9.5' }, openapi: '3.0.0' });
         }),
         http.get('http://127.0.0.1:4735/measurements', () => {
           return HttpResponse.json([{ uuid: 'uuid-1', name: 'Test' }]);
@@ -431,8 +440,11 @@ describe('MCP Server Integration', () => {
   describe('Response Format Compliance', () => {
     it('should return content as array with text type', async () => {
       mswServer.use(
+        http.get('http://127.0.0.1:4735/version', () => {
+          return HttpResponse.json({ message: '5.30.9 API 0.9.5' });
+        }),
         http.get('http://127.0.0.1:4735/doc.json', () => {
-          return HttpResponse.json({ info: { version: '5.30.9' }, openapi: '3.0.0' });
+          return HttpResponse.json({ info: { version: '0.9.5' }, openapi: '3.0.0' });
         }),
         http.get('http://127.0.0.1:4735/measurements', () => {
           return HttpResponse.json([]);
@@ -458,8 +470,11 @@ describe('MCP Server Integration', () => {
 
     it('should return valid JSON in text content', async () => {
       mswServer.use(
+        http.get('http://127.0.0.1:4735/version', () => {
+          return HttpResponse.json({ message: '5.30.9 API 0.9.5' });
+        }),
         http.get('http://127.0.0.1:4735/doc.json', () => {
-          return HttpResponse.json({ info: { version: '5.30.9' }, openapi: '3.0.0' });
+          return HttpResponse.json({ info: { version: '0.9.5' }, openapi: '3.0.0' });
         }),
         http.get('http://127.0.0.1:4735/measurements', () => {
           return HttpResponse.json([]);

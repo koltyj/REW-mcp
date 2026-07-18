@@ -126,8 +126,8 @@ export async function executeApiCheckLevels(input: ApiCheckLevelsInput): Promise
       // Start input level monitoring
       await client.startInputLevelMonitoring();
 
-      // Get input levels
-      const levels = await client.getInputLevels('dBFS');
+      // Get input levels (unit is reported by REW in the response)
+      const levels = await client.getInputLevels();
 
       if (!levels) {
         return {

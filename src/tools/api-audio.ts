@@ -95,7 +95,7 @@ export async function executeApiAudio(input: ApiAudioInput): Promise<ToolRespons
             audio_status: {
               enabled: audioStatus?.enabled ?? false,
               ready: audioStatus?.ready ?? false,
-              driver: driver || audioStatus?.driver,
+              driver: driver || undefined,
               sample_rate: sampleRate ?? undefined,
               current_input: inputDevice ?? undefined,
               current_output: outputDevice ?? undefined
